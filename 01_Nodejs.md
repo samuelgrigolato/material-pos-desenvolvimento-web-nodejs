@@ -60,11 +60,100 @@ Composto por um *servidor web*, capaz de aceitar as requisições HTTP, e normal
 
 Os navegadores executam JavaScript de modo Single Thread e seguindo uma arquitetura baseada em eventos. Mas o que exatamente isso significa?
 
+Um processo no sistema operacional pode iniciar uma ou mais *threads*. De modo simplificado, cada *thread* é uma sequência de execução, podendo ou não serem executadas paralelamente (em máquinas com mais de um núcleo). Mesmo com um único núcleo, as *threads* normalmente são *escalonadas* pelo sistema operacional de modo a darem a impressão de paralelismo através de execução concorrente.
+
+O desenvolvimento *multi-thread* traz consigo um conjunto de desafios, principalmente quando há o compartilhamento de *recursos* (periféricos, sistema de arquivos, etc.) e *estado* (memória).
+
+Na concepção do JavaScript, foi definido que a execução se daria em uma única thread (pelo menos do ponto de vista do desenvolvedor, nada impede, e isso de fato ocorre, que motores JavaScript executem em múltiplas threads, desde que isso fique abstraído do desenvolvedor final). Mas isso soa bem engessado, como as aplicações conseguem atingir níveis de responsividade e dinamismo sem a capacidade de executar código de forma concorrente/paralela?
+
+É verdade que não há como executar código JavaScript de forma *paralela*, mas a *concorrência* pode ser atingida sim, através de um conceito chamado *Event Loop*.
+
+Todo motor de JavaScript implementa um loop de eventos, basicamente composto por uma fila de tarefas. Todo código JavaScript é uma tarefa chamada por esse loop, seja essa tarefa criada por um evento de usuário (clique em um botão) ou evento de navegador (término do carregamento de uma página, término de uma requisição AJAX, término do tempo de espera de temporizadores, etc.). Considere o seguinte exemplo:
+
+```html
+<!DOCTYPE>
+<html>
+<body onload="digaOi()">
+  <script>
+    function digaOi() {
+      console.log('Oi!');
+    }
+    setTimeout(function () {
+      console.log('5s depois...');
+    }, 5000);
+    console.log('fim da tag script');
+  </script>
+  <button onclick="digaOi()">Diga oi!</button>
+</body>
+</html>
+```
+
+O loop de eventos inicia processando a tag `script`, que define a função `digaOi`, registra uma outra tarefa para ser executada depois de 5 segundos (note que isso só é possível pois funções são *cidadãos de primeira classe* no JavaScript, o método `setTimeout` está recebendo uma função como parâmetro), e por fim escreve um texto no console do navegador. Assim que a página termina de ser processada, o próprio navegador executa o script contido no atributo `onload` do elemento `body`. E também, sempre que o usuário clica no botão "Diga oi!", uma tarefa é registrada no loop de eventos, responsável por executar o script do atributo `onclick` deste botão.
+
+Note que nada aqui foi executado de modo paralelo, mas a ideia de concorrência é fortemente presente graças ao uso de um loop de eventos.
+
+## Requisições AJAX
+
+Esse modelo de execução gerou um padrão de codificação muito difundido em aplicações web, na parte do front-end: a execução de requisições HTTP iniciadas pelo próprio JavaScript, de modo assíncrono. Quando uma resposta é recebida, um *callback* é disparado, ou em outras palavras, o navegador coloca uma tarefa no loop de eventos para executar uma função passando a resposta da requisição, seja ela positiva ou não. Veja o exemplo:
+
+```html
+<!DOCTYPE>
+<html>
+<body>
+  <script>
+    function tratarErro(erro) {
+      document.getElementById('resultado').innerText = `Erro: ${erro}`;
+    }
+    function buscar() {
+      fetch('https://rickandmortyapi.com/api/character/1').then(resp => {
+        if (resp.ok) {
+          resp.json().then(dados => {
+            document.getElementById('resultado').innerText = `Nome: ${dados.name}`;
+          }, tratarErro);
+        } else {
+          tratarErro(resp.statusText);
+        }
+      }, tratarErro);
+    }
+  </script>
+  <button onclick="buscar()">Buscar</button>
+  <span id="resultado">
+  </span>
+</body>
+</html>
+```
+
+## Node.js
+
+Agora que a revisão foi feita, é possível olhar para o Node.js e entender onde ele se propõe a trabalhar. Considere a definição no próprio site da ferramenta:
+
+> Node.js® is a JavaScript runtime built on Chrome's V8 JavaScript engine.
+
+Basicamente o que isso quer dizer é: uma camada sobre um motor de execução de JavaScript muito poderoso (V8), permitindo o desenvolvimento de aplicações que não executam no contexto de um navegador.
+
+### Instalação
+
+O primeiro passo para o aprendizado do Node.js é a instalação da ferramenta. Como isso varia muito dependendo do sistema operacional, a única coisa que será feita aqui é o apontamento para a página de download: https://nodejs.org/en/download/. Note que virtualmente todas as distribuições Linux possuem o Node.js em seu gestor de pacotes.
+
+Para verificar se você já possui uma instalação, ou se a que acabou de fazer deu certo, abra um terminal e execute o seguinte comando:
+
+```
+node -v
+```
+
+Se o comando retornar um número de versão, sem falha, significa que deu certo. Garanta que você possui pelo menos a última versão `LTS` (`v.10.16` no momento da escrita deste material) ou superior para evitar problemas no decorrer da disciplina.
+
+### Node Version Manager (NVM)
+
+Do mesmo modo que ocorre em outras linguagens, pode ser que você se encontre em uma situação onde precise ter várias versões do Node na máquina, uma para cada projeto em que está trabalhando. Neste tipo de situação é comum ouvir o termo "ambiente virtual" (virtual environment). No caso do Node, uma das ferramentas que auxilia na gestão de ambientes virtuais é o `nvm` (https://github.com/nvm-sh/nvm).
+
+Note que o SO Windows não é suportado por essa ferramenta, então a instalação raíz deverá ser usada durante a disciplina, ou deverá ser efetuada a instalação de uma alternativa como o `nvm-windows` (https://github.com/coreybutler/nvm-windows).
+
+Para instalar a distribuição mais recente, use o comando `nvm install node`. Para instalar a distribuição LTS mais recente, use `nvm install lts/*`. Para listar as instalações disponíveis na máquina, use `nvm ls`. Para selecionar uma instalação específica, use `nvm use <versão>`.
+
 TODO:
 
-- JavaScript no navegador: de simples eventos até SPAs. Evolução das VMs de execução. Single-thread/arquitetura de eventos e seus benefícios/prejuízos.
-
-- Surgimento do Node.js: uso de JavaScript fora do navegador. História da ferramenta. Instalação e gestão de versões com nvm. Exemplos de código variados. Debugging (v7.7+) manual (node inspect), no Chrome e no vscode.
+- Exemplos de código variados. Debugging (v7.7+) manual (node inspect), no Chrome e no vscode. Exercícios.
 
 https://nodejs.org/dist/latest-v10.x/docs/api/readline.html
 
