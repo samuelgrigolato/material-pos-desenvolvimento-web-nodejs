@@ -151,11 +151,76 @@ Note que o SO Windows não é suportado por essa ferramenta, então a instalaç�
 
 Para instalar a distribuição mais recente, use o comando `nvm install node`. Para instalar a distribuição LTS mais recente, use `nvm install lts/*`. Para listar as instalações disponíveis na máquina, use `nvm ls`. Para selecionar uma instalação específica, use `nvm use <versão>`.
 
+### Primeiro script Node.js
+
+Para executar um script usando o ambiente de execução do Node.js, basta abrir um terminal e usar o seguinte comando:
+
+```
+node arquivo.js
+```
+
+Onde `arquivo.js` é o script que deseja executar. Faça um teste com o seguinte código de exemplo:
+
+```js
+console.log(1 + 2);
+```
+
+Salve o texto acima em um arquivo e execute-o. A saída deve ser algo parecido com isso:
+
+```
+$ node arquivo.js
+3
+```
+
+Note que, no decorrer deste material, linhas iniciadas com `$` significam um comando digitado no terminal, enquanto as outras linhas significam a saída desses comandos.
+
+Modifique agora o arquivo com o código abaixo, um pouco mais complicado, incluindo leitura de dados do usuário:
+
+```js
+const readline = require('readline');
+
+const reader = readline.createInterface(process.stdin, process.stdout);
+reader.question('Seu nome: ', nome => {
+    console.log(`Olá, ${nome}!`);
+});
+reader.addListener("line", linha => {
+    if (linha.toLowerCase() === 'sair') {
+        reader.close();
+    }
+});
+```
+
+Pontos interessantes para observar no código acima:
+
+- Importação de módulo usando a função `require`. O pacote `readline` é um pacote nativo do Node.js que permite interação facilitada com o usuário através da linha de comando.
+- Uso do método `question`, passando um `callback`, para implementar a interação com o usuário.
+- Uso do método `addListener`, para verificar se o usuário digitou o termo `sair`, e em caso positivo desligar o leitor, efetivamente encerrando o processo.
+
+Por qual motivo esse último passo foi necessário? Como discutido nas seções anteriores, o Node.js é construído sobre o motor de execução V8, que por sua vez implementa um looping de eventos. A partir do momento em que o leitor de dados da interface é criado, ele impede que a aplicação encerre após o término do script, pois ele é uma fonte de eventos desse loop. Em outras palavras, enquanto o leitor não for fechado manualmente, ou o método `process.exit(status)` for chamado, o processo não será encerrado e segurará o terminal do usuário.
+
+### Debugging
+
+Uma ferramenta muito importante para se ter enquanto desenvolvedor de software é um bom método de *debugging*. No caso do Node.js, existem várias disponíveis:
+
+- Manualmente, usando `node inspect` ao invés de simplesmente `node` para executar o script. Obviamente essa opção é péssima em termos de usabilidade.
+
+- Acessar a URL `chrome://inspect` no navegador Chrome e anexar a um processo `node` iniciado com a flag `--inspect`, ex: `node --inspect arquivo.js`.
+
+- Iniciar o processo por dentro de uma IDE com suporte ao modo de debug. O Visual Studio Code é um exemplo: habilite a configuração *Debug > Node: Auto Attach*, abra um terminal integrado, e inicie o script com a flag `--inspect` normalmente.
+
+### Módulos
+
+### Eventos
+
+### Sistema de arquivos
+
+### Servindo HTTP
+
+### Múltiplos processos
+
+## Desenvolvendo uma API HTTP
+
 TODO:
-
-- Exemplos de código variados. Debugging (v7.7+) manual (node inspect), no Chrome e no vscode. Exercícios.
-
-https://nodejs.org/dist/latest-v10.x/docs/api/readline.html
 
 - Principais diferenças do Node.js com o JavaScript do navegador: cadê o DOM? módulos com CommonJS, API de acesso ao sistema de arquivos, API para servir HTTP, API para clusterização, API de eventos.
 
