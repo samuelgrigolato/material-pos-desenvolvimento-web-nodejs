@@ -310,9 +310,50 @@ Infelizmente a sintaxe de módulos do ES6 ainda é experimental no Node.js, port
 
 [2] https://nodejs.org/api/esm.html#esm_introduction
 
-### Eventos
-
 ### Sistema de arquivos
+
+Uma das melhores maneiras de aprender uma nova linguagem é aplicando conceitos já conhecidos em outras, e comparar as soluçõeses obtidas.
+
+Um desses conceitos bem comuns é a manipulação do sistema de arquivos. O Node.js fornece uma API para isso [1], evidentemente. Veja o exemplo abaixo de leitura de um arquivo:
+
+```js
+const fs = require('fs');
+
+const data = fs.readFileSync('lorem.txt');
+console.log(data);
+```
+
+Repare que o retorno é um objeto do tipo `Buffer`. Isso ocorre pois o Node.js não assume que o arquivo contém texto. É possível obter texto (`string`) de duas formas:
+
+1. Chamando o método `toString` passando a codificação correta:
+  ```js
+  console.log(data.toString('UTF-8'));
+  ```
+2. Passando a codificação diretamente na chamada do método `readFileSync`:
+  ```js
+  const data = fs.readFileSync('lorem.txt', {
+      encoding: 'UTF-8'
+  });
+  console.log(data);
+  ```
+
+Note que essas operações são síncronas, e como já discutido, o Node.js executa em uma única thread sobre um loop de eventos. Basicamente o que isso significa é que se o arquivo lido for muito grande, o processo (sua aplicação) inteira vai ficar parada aguardando o carregando dos dados.
+
+Isso é definitivamente uma situação indesejada, e é esperado de todo programador Node.js o conhecimento das APIs assíncronas (elas existem para todos os lados) equivalentes e um bom julgamento na hora de escolher qual usar (a API assíncrona prioriza a performance, enquanto a API síncrona prioriza a simplicidade do código). Veja como fica o exemplo acima usando a API assíncrona:
+
+```js
+const options = { encoding: 'UTF-8' };
+const callback = (err, data) => {
+    if (err) throw err;
+    console.log(data);
+};
+fs.readFile('lorem.txt', options, callback);
+console.log('A leitura ainda não ocorreu');
+```
+
+Assim que o método `readFile` é chamado, a execução continua, e quando os dados estiverem prontos (ou um erro for identificado) o loop de eventos vai chamar a função passada como callback para que o processamento continue.
+
+[1] https://nodejs.org/api/fs.html
 
 ### Servindo HTTP
 
