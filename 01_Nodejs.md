@@ -935,7 +935,324 @@ req.on('end', () => {
 
 ## Consumindo a API usando um front-end Angular
 
-TODO:
+Para finalizar o tópico, construir um front-end simples, usando Angular, que consome a API construída parece uma boa ideia. Comece garantindo que possui o `@angular/cli` disponível na instalação do Node.js:
 
-- Consumo usando Angular
-- Exercícios
+```
+$ ng --version
+```
+
+Caso não tenha (provavelmente esse será o caso por conta da instalação do `nvm`), instale-o com o seguinte comando:
+
+```
+$ npm install -g @angular/cli
+```
+
+Inicie um novo projeto com o comando abaixo (não há a necessidade de adicionar roteamento para este exemplo). Dê o nome `tarefas` ao projeto:
+
+```
+$ ng new
+```
+
+Teste se tudo funcionou com o comando abaixo:
+
+```
+$ cd tarefas/
+$ ng serve
+```
+
+E acesse `http://localhost:4200/` no navegador. Abra um outro terminal e deixe a API executando.
+
+Modifique o arquivo `app.component.html` dessa forma:
+
+```html
+<table>
+  <thead>
+    <tr>
+      <th>Tarefa</th>
+      <th>Previsão</th>
+      <th>Concluída?</th>
+      <th>Ações</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr *ngFor="let tarefa of tarefas">
+      <td>{{tarefa.descricao}}</td>
+      <td>{{tarefa.previsao | date:"dd/MM/yyyy HH:mm"}}</td>
+      <td>{{tarefa.concluida ? 'Sim' : 'Não'}}</td>
+      <td>
+        <button (click)="concluir(tarefa)" *ngIf="!tarefa.concluida">Concluir</button>
+        <button (click)="reabrir(tarefa)" *ngIf="tarefa.concluida">Reabrir</button>
+        <button (click)="remover(tarefa)">Excluir</button>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<form [formGroup]="formGroup" (ngSubmit)="cadastrar()">
+  <p>
+    Descrição:
+    <input formControlName="descricao">
+  </p>
+  <p>
+    Previsão:
+    <input type="date" formControlName="previsao">
+  </p>
+  <p>
+    <button>Cadastrar</button>
+  </p>
+</form>
+```
+
+Instale também o `@angular/forms` no projeto, usando o comando abaixo:
+
+```
+$ npm install @angular/forms
+```
+
+E importe o módulo de formulários reativos na classe `AppModule`:
+
+```ts
+import { BrowserModule } from '@angular/platform-browser';
+import { NgModule } from '@angular/core';
+import { ReactiveFormsModule } from '@angular/forms';
+
+import { AppComponent } from './app.component';
+
+@NgModule({
+  declarations: [
+    AppComponent
+  ],
+  imports: [
+    BrowserModule,
+    ReactiveFormsModule
+  ],
+  providers: [],
+  bootstrap: [AppComponent]
+})
+export class AppModule { }
+```
+
+Agora implemente os atributos para a tabela e o formulário na classe `AppComponent`, por enquanto sem nenhuma comunicação com a API:
+
+```ts
+import { Component, OnInit } from '@angular/core';
+import { FormGroup, FormBuilder, Validators } from '@angular/forms';
+
+
+interface Tarefa {
+  id: number;
+  descricao: string;
+  previsao?: Date;
+  concluida: boolean;
+}
+
+
+@Component({
+  selector: 'app-root',
+  templateUrl: './app.component.html',
+  styleUrls: ['./app.component.css']
+})
+export class AppComponent implements OnInit {
+
+  tarefas: Tarefa[] = [
+    {
+      id: 1,
+      concluida: false,
+      descricao: 'Tarefa 1',
+      previsao: new Date()
+    }
+  ];
+
+  descricao?: string;
+  previsao?: Date;
+
+  formGroup: FormGroup;
+
+  constructor(private builder: FormBuilder) {
+  }
+
+  ngOnInit() {
+    this.formGroup = this.builder.group({
+      descricao: ['', Validators.required],
+      previsao: [null]
+    });
+  }
+
+}
+```
+
+Execute a aplicação e garanta que ela está funcionando (exceto os cliques nos botões).
+
+Para implementar as integrações com a API de dados, comece instalando o módulo `@angular/http`:
+
+```
+$ npm install @angular/http
+```
+
+Depois importe o módulo na classe `AppModule`:
+
+```ts
+import { BrowserModule } from '@angular/platform-browser';
+import { NgModule } from '@angular/core';
+import { ReactiveFormsModule } from '@angular/forms';
+import { HttpClientModule } from '@angular/common/http';
+
+import { AppComponent } from './app.component';
+
+@NgModule({
+  declarations: [
+    AppComponent
+  ],
+  imports: [
+    BrowserModule,
+    ReactiveFormsModule,
+    HttpClientModule
+  ],
+  providers: [],
+  bootstrap: [AppComponent]
+})
+export class AppModule { }
+```
+
+Importe agora o `HttpClient` na classe `AppComponent` e efetue a implementação da chamada de API para buscar tarefas:
+
+```ts
+import { Component, OnInit } from '@angular/core';
+import { FormGroup, FormBuilder, Validators } from '@angular/forms';
+import { HttpClient } from '@angular/common/http';
+
+
+interface Tarefa {
+  id: number;
+  descricao: string;
+  previsao?: Date;
+  concluida: boolean;
+}
+
+
+@Component({
+  selector: 'app-root',
+  templateUrl: './app.component.html',
+  styleUrls: ['./app.component.css']
+})
+export class AppComponent implements OnInit {
+
+  tarefas: Tarefa[] = [];
+
+  formGroup: FormGroup;
+
+  constructor(private builder: FormBuilder,
+              private http: HttpClient) {
+  }
+
+  ngOnInit() {
+    this.formGroup = this.builder.group({
+      descricao: ['', Validators.required],
+      previsao: [null]
+    });
+    this.http.get('http://localhost:8080/tarefas').subscribe(tarefas => {
+      this.tarefas = <Tarefa[]>tarefas;
+    });
+  }
+
+}
+```
+
+Ao testar, o navegador não vai permitir a finalização da chamada, devido a um mecanismo de segurança chamado CORS (Cross-Origin Resource Sharing). Existem muitas maneiras de lidar com CORS, a mais fácil delas é adicionar um header em todas as respostas, permitindo que qualquer host efetue a chamada. Faça isso no arquivo `main.js` (note que isso é feito no back-end, e não no front-end):
+
+```js
+req.on('data', chunk => {
+    data += chunk;
+});
+req.on('end', () => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Headers', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'OPTIONS, POST, GET, DELETE, PUT');
+    if (req.method == 'OPTIONS') {
+        res.end();
+        return;
+    }
+    try {
+        res.setHeader('Content-Type', 'application/json');
+        const url = req.url.split('?');
+        const path = url[0];
+```
+
+Agora termine a implementação dos outros comportamentos do gestor de tarefas, na classe `AppComponent`:
+
+```ts
+import { Component, OnInit } from '@angular/core';
+import { FormGroup, FormBuilder, Validators } from '@angular/forms';
+import { HttpClient } from '@angular/common/http';
+
+
+interface Tarefa {
+  id: number;
+  descricao: string;
+  previsao?: Date;
+  concluida: boolean;
+}
+
+
+@Component({
+  selector: 'app-root',
+  templateUrl: './app.component.html',
+  styleUrls: ['./app.component.css']
+})
+export class AppComponent implements OnInit {
+
+  tarefas: Tarefa[] = [];
+
+  formGroup: FormGroup;
+
+  constructor(private builder: FormBuilder,
+              private http: HttpClient) {
+  }
+
+  ngOnInit() {
+    this.formGroup = this.builder.group({
+      descricao: ['', Validators.required],
+      previsao: [null]
+    });
+    this.carregar();
+  }
+
+  private carregar() {
+    this.http.get('http://localhost:8080/tarefas').subscribe(tarefas => {
+      this.tarefas = <Tarefa[]>tarefas;
+    });
+  }
+
+  concluir(tarefa: Tarefa) {
+    this.http.post(`http://localhost:8080/tarefas/${tarefa.id}/finalizar`, {}).subscribe(() => {
+      tarefa.concluida = true;
+    });
+  }
+
+  reabrir(tarefa: Tarefa) {
+    this.http.post(`http://localhost:8080/tarefas/${tarefa.id}/reabrir`, {}).subscribe(() => {
+      tarefa.concluida = false;
+    });
+  }
+
+  remover(tarefa: Tarefa) {
+    this.http.delete(`http://localhost:8080/tarefas/${tarefa.id}`).subscribe(() => {
+      this.tarefas.splice(this.tarefas.indexOf(tarefa), 1);
+    });
+  }
+
+  cadastrar() {
+    const dados = this.formGroup.value;
+    this.http.post(`http://localhost:8080/tarefas`, dados).subscribe(() => {
+      this.formGroup.setValue({
+        descricao: "",
+        previsao: null
+      });
+      this.carregar();
+    });
+  }
+
+}
+```
+
+Nota: em um projeto real seriam utilizadas bibliotecas de componentes (como a `@angular/material`), uma componentização mais granular (ao invés de implementar tudo no `AppComponent`) e camadas de serviços para isolar as chamadas HTTP dos componentes. No entanto, nada disso é essencial para passar a mensagem que se espera nesse exemplo.

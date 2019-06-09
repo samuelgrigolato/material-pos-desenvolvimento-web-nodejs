@@ -14,7 +14,8 @@ function get(req, res, data, path, queryParams) {
         return {
             id: x.id,
             descricao: x.descricao,
-            concluida: x.conclusao != null
+            concluida: x.conclusao != null,
+            previsao: x.previsao
         };
     })));
 }

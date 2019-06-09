@@ -9,6 +9,13 @@ const server = http.createServer((req, res) => {
         data += chunk;
     });
     req.on('end', () => {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Headers', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'OPTIONS, POST, GET, DELETE, PUT');
+        if (req.method == 'OPTIONS') {
+            res.end();
+            return;
+        }
         try {
             res.setHeader('Content-Type', 'application/json');
             const url = req.url.split('?');
