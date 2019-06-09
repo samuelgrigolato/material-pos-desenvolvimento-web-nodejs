@@ -353,11 +353,98 @@ console.log('A leitura ainda não ocorreu');
 
 Assim que o método `readFile` é chamado, a execução continua, e quando os dados estiverem prontos (ou um erro for identificado) o loop de eventos vai chamar a função passada como callback para que o processamento continue.
 
+Não é difícil perceber que a codificação assíncrona fica rapidamente complexa de entender. Considere o seguinte código, que primeiro lê o conteúdo de um arquivo, depois pergunta uma informação ao usuário, depois adiciona essa informação no arquivo:
+
+```js
+const fs = require('fs');
+const readline = require('readline');
+
+const reader = readline.createInterface(process.stdin, process.stdout);
+
+fs.readFile('dados.txt', { encoding: 'UTF-8' }, (err, data) => {
+    if (err) throw err;
+    console.log(data);
+    reader.question('Linha: ', linha => {
+        fs.appendFile('dados.txt', linha + '\n', err => {
+            if (err) throw err;
+            reader.close();
+        });
+    });
+});
+```
+
+Não é difícil imaginar a necessidade de encadear três operações assíncronas em um código real (na prática podem ocorrer muito mais) e é visível que a legibilidade do código se denigre muito rápido. Extrair os callbacks não ajuda muito, pois granulariza demais o código, o que também dificulta a leitura.
+
+Com o objetivo de melhorar isso, surgiu no JavaScript o conceito de promessas (*promises*). A ideia principal é, ao chamar uma operação assíncrona, ao invés de passar um callback como parâmetro, receber um objeto como retorno, e ser capaz de inscrever neste objeto funções que serão chamadas no futuro com o resultado da operação. Veja o exemplo acima, reescrito para usar a versão da API de sistema de arquivos baseada em Promises:
+
+```js
+const fs = require('fs');
+const readline = require('readline');
+
+const reader = readline.createInterface(process.stdin, process.stdout);
+
+fs.promises.readFile('dados.txt', { encoding: 'UTF-8' })
+    .then(data => {
+        console.log(data);
+        return new Promise((resolve, _) => {
+            reader.question('Linha: ', linha => resolve(linha));
+        });
+    })
+    .then(linha => fs.promises.appendFile('dados.txt', linha + '\n'))
+    .then(() => reader.close());
+```
+
+E como fica o tratamento de erros? Da forma como está implementado no exemplo, o comportamento é exatamente o mesmo da versão anterior, visto que o erro era apenas relançado assim que identificado. Para fazer algo diferente com ele, no entanto, é necessário usar a função `catch` da promessa, ou passar um segundo callback como parâmetro para as chamadas `then`:
+
+```js
+fs.promises.readFile('dados.txt', { encoding: 'UTF-8' })
+    .then(data => {
+        console.log(data);
+        return new Promise((resolve, _) => {
+            reader.question('Linha: ', linha => resolve(linha));
+        });
+    })
+    .then(linha => fs.promises.appendFile('dados.txt', linha + '\n'))
+    .then(() => reader.close())
+    .catch(err => {
+        console.log(`Erro: ${err}`);
+        reader.close();
+    });
+```
+
+A legibilidade do código ficou muito melhor, mas ainda é possível melhorar. Com o intuito de aproximar ainda mais a sintaxe de código assíncrono da sintaxe de código síncrono, duas novas palavras-chave surgiram na linguagem: `async` e `await`. `async` é adicionado em funções, e diz para o Node.js que essa função pode usar a palavra-chave `await` dentro dela. Já a `await` é usada logo antes de chamadas que retornam promessas, e basicamente faz com que a execução interrompa (sem bloquear o loop de eventos) até que a resposta chegue e ela possa prosseguir de onde parou. Veja o exemplo reescrito com o uso dessas palavras-chave:
+
+```js
+const fs = require('fs');
+const readline = require('readline');
+
+const reader = readline.createInterface(process.stdin, process.stdout);
+
+async function main() {
+    try {
+        const data = await fs.promises.readFile('dados.txt', { encoding: 'UTF-8' });
+        console.log(data);
+        const linha = await new Promise((resolve, _) => {
+            reader.question('Linha: ', linha => resolve(linha));
+        });
+        await fs.promises.appendFile('dados.txt', linha + '\n');
+    } catch (err) {
+        console.log(`Erro: ${err}`);
+    } finally {
+        reader.close();
+    }
+}
+
+console.log(main());
+```
+
+Agora sim a implementação está bem legível, sem comprometer a performance. Note que só o fato de demarcar a função como `async` já faz ela retornar uma promessa, o que faz sentido se analisar as consequências disso.
+
 [1] https://nodejs.org/api/fs.html
 
-### Servindo HTTP
-
 ### Múltiplos processos
+
+### Servindo HTTP
 
 ## Desenvolvendo uma API HTTP
 
