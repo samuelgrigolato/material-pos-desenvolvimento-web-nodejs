@@ -511,22 +511,431 @@ Note que dificilmente o desenvolvedor usa esses módulos diretamente, mas é imp
 
 ### Servindo HTTP
 
-## Desenvolvendo uma API HTTP
+Ser capaz de escrever utilitários de linha de comando é útil, mas não é nem de longe o único uso do Node.js. Servir como back-end HTTP é um dos principais motivos de sua concepção, e existe suporte nativo para isso [1]. Existem também módulos estáveis para HTTP/2 [2] e HTTPS [3].
+
+Suponha que você deseja implementar uma API de dados para manipulação de tarefas. Cada tarefa possui um identificador, uma data de criação, uma descrição, uma data prevista para conclusão e uma data real de conclusão. As seguintes operações devem ser suportadas pela API:
+
+- Listar as tarefas (apenas o identificador, a descrição e um indicativo de conclusão) filtrando (opcionalmente) por qualquer parte da descrição.
+- Buscar os dados completos de uma tarefa específica.
+- Cadastrar uma tarefa.
+- Alterar a descrição de uma tarefa existente.
+- Alterar a data prevista de conclusão de uma tarefa.
+- Concluir uma tarefa.
+- Reabrir uma tarefa.
+
+Traduzindo para o modelo REST, uma das formas de implementar essa API é através do seguinte conjunto de requisições:
+
+- `GET /tarefas[?filtro=]`. Resposta: `[{ id: number, descricao: string, concluida: boolean }]`.
+- `GET /tarefas/{id}`. Resposta: `{ descricao: string, criacao: Date, previsao: Date, conclusao?: Date }`.
+- `POST /tarefas`. Corpo: `{ descricao: string, previsao: Date }`.
+- `PUT /tarefas/{id}/descricao`. Corpo: `string`.
+- `PUT /tarefas/{id}/previsao`. Corpo: `Date`.
+- `POST /tarefas/{id}/finalizar`
+- `POST /tarefas/{id}/reabrir`
+
+Note que também seria possível implementar um único `PUT` expondo todos os atributos, mas isso transfere muita inteligência de negócio para o front-end, e normalmente não é isso que se deseja.
+
+Antes de iniciar o desenvolvimento da API, escreva o seguinte módulo JavaScript, que fará o papel de repositório de dados. Como ainda não existe uma base de dados disponível, os dados serão voláteis, ou seja, serão perdidos entre execuções da aplicação. Coloque o código em um arquivo chamado `tarefas/tarefas-modelo.js`:
+
+```js
+let ID = 1;
+const REGISTROS = [];
+
+
+class Tarefa {
+  constructor(descricao, previsao) {
+    this.id = ID;
+    ID++;
+    this.descricao = descricao;
+    this.previsao = previsao;
+    this.criacao = new Date();
+    this.conclusao = null;
+  }
+};
+module.exports.Tarefa = Tarefa;
+
+
+REGISTROS.push(new Tarefa('Terminar essa API', null));
+REGISTROS.push(new Tarefa('Ir embora', new Date()));
+
+
+module.exports.listar = function (filtro) {
+  if (!filtro) {
+    return REGISTROS;
+  } else {
+    const lower = filtro.toLowerCase();
+    return REGISTROS.filter(x => x.descricao.toLowerCase().indexOf(lower) >= 0);
+  }
+};
+
+
+function buscarPorId (id) {
+  return REGISTROS.filter(x => x.id == id)[0];
+}
+module.exports.buscarPorId = buscarPorId;
+
+
+module.exports.cadastrar = function (tarefa) {
+  REGISTROS.push(tarefa);
+};
+
+
+module.exports.alterarDescricao = function (id, descricao) {
+  buscarPorId(id).descricao = descricao;
+};
+
+
+module.exports.alterarPrevisao = function (id, previsao) {
+  buscarPorId(id).previsao = previsao;
+};
+
+
+module.exports.concluir = function (id) {
+  buscarPorId(id).conclusao = new Date();
+};
+
+
+module.exports.reabrir = function (id) {
+  buscarPorId(id).conclusao = null;
+};
+
+
+module.exports.excluir = function (id) {
+  const registro = buscarPorId(id);
+  const idx = REGISTROS.indexOf(registro);
+  REGISTROS.splice(idx, 1);
+}
+```
+
+Note que esses métodos não estão efetuando nenhum tipo de validação nos dados, eles servem apenas para fins ilustrativos.
+
+Teste esse módulo usando o REPL do Node. Para isso, bbasta executar o comando `node`, importar o módulo via `require` e usar os métodos dele, ex:
+
+```sh
+$ node
+> const tarefas = require('./tarefas/tarefas-modelo');
+> tarefas.buscar();
+> tarefas.excluir(1);
+```
+
+Com o módulo de acesso aos dados concluído, é possível prosseguir para o desenvolvimento da API HTTP que expõe as funcionalidades desse módulo. Crie um arquivo chamado `main.js`, com o seguinte código:
+
+```js
+const http = require('http');
+
+
+const server = http.createServer((req, res) => {
+    let data = "";
+    req.on('data', chunk => {
+        data += chunk;
+    });
+    req.on('end', () => {
+        console.log(data);
+        res.write(`Olá, ${data}!`);
+        res.end();
+    });
+});
+server.listen(8080);
+```
+
+Teste usando qualquer ferramenta de execução de chamadas HTTP, como o cUrl ou o Postman.
+
+Prossiga agora para os *endpoints* de listagem, detalhamento e cadastro. Pensando na modularização do código, crie um arquivo `tarefas/tarefas-api.js`, com o seguinte conteúdo:
+
+```js
+const tarefas = require('./tarefas-modelo');
+
+
+function get(req, res, data, path, queryParams) {
+    res.write('get');
+}
+
+
+function getById(req, res, data, path, queryParams) {
+    res.write('getById');
+}
+
+
+function post(req, res, data, path, queryParams) {
+    res.write('post');
+}
+
+
+module.exports.processar = function (req, res, data, path, queryParams) {
+    const method = req.method;
+    if (method == 'GET' && path.startsWith('/tarefas/')) {
+        getById(req, res, data, path, queryParams);
+    } else if (method == 'GET' && path === '/tarefas') {
+        get(req, res, data, path, queryParams);
+    } else if (method == 'POST' && path === '/tarefas') {
+        post(req, res, data, path, queryParams);
+    } else {
+        res.statusCode = 404;
+    }
+}
+```
+
+E ajuste o arquivo `main.js` dessa maneira:
+
+```js
+const http = require('http');
+const querystring = require('querystring');
+const tarefas = require('./tarefas/tarefas-api');
+
+
+const server = http.createServer((req, res) => {
+    let data = "";
+    req.on('data', chunk => {
+        data += chunk;
+    });
+    req.on('end', () => {
+        const url = req.url.split('?');
+        const path = url[0];
+        const queryParams = url.length > 1 ? querystring.parse(url[1]) : {};
+        if (path.startsWith('/tarefas')) {
+            tarefas.processar(req, res, data, path, queryParams);
+        } else {
+            res.statusCode = 404;
+        }
+        res.write('\n'+data);
+        res.write('\n'+path);
+        res.write('\n'+JSON.stringify(queryParams));
+        res.end();
+    });
+});
+server.listen(8080);
+```
+
+Teste o resultado usando cUrl ou Postman. Uma vez entendido o funcionamento, termine a implementação dos métodos no módulo `tarefas-api.js`:
+
+```js
+const tarefas = require('./tarefas-modelo');
+
+
+function get(req, res, data, path, queryParams) {
+    const filtro = queryParams['filtro'];
+    const registros = tarefas.listar(filtro);
+    res.write(JSON.stringify(registros.map(x => {
+        return {
+            id: x.id,
+            descricao: x.descricao,
+            concluida: x.conclusao != null
+        };
+    })));
+}
+
+
+function getById(req, res, data, path, queryParams) {
+    const partes = path.split('/');
+    const id = parseInt(partes[2]);
+    const registro = tarefas.buscarPorId(id);
+    res.write(JSON.stringify({
+        descricao: registro.descricao,
+        criacao: registro.criacao,
+        conclusao: registro.conclusao,
+        previsao: registro.previsao
+    }));
+}
+
+
+function post(req, res, data, path, queryParams) {
+    const obj = JSON.parse(data);
+    const descricao = obj['descricao'];
+    const previsao = obj['previsao'] ?
+        new Date(obj['previsao']) : null;
+    const registro = new tarefas.Tarefa(descricao, previsao);
+    tarefas.cadastrar(registro);
+}
+
+
+module.exports.processar = function (req, res, data, path, queryParams) {
+    const method = req.method;
+    if (method == 'GET' && path.startsWith('/tarefas/')) {
+        getById(req, res, data, path, queryParams);
+    } else if (method == 'GET' && path === '/tarefas') {
+        get(req, res, data, path, queryParams);
+    } else if (method == 'POST' && path === '/tarefas') {
+        post(req, res, data, path, queryParams);
+    } else {
+        res.statusCode = 404;
+    }
+}
+```
+
+Antes de testar, remova as escritas de teste deixadas no arquivo `main.js`, deixando-o dessa forma:
+
+```js
+const http = require('http');
+const querystring = require('querystring');
+const tarefas = require('./tarefas/tarefas-api');
+
+
+const server = http.createServer((req, res) => {
+    let data = "";
+    req.on('data', chunk => {
+        data += chunk;
+    });
+    req.on('end', () => {
+        const url = req.url.split('?');
+        const path = url[0];
+        const queryParams = url.length > 1 ? querystring.parse(url[1]) : {};
+        if (path.startsWith('/tarefas')) {
+            tarefas.processar(req, res, data, path, queryParams);
+        } else {
+            res.statusCode = 404;
+        }
+        res.end();
+    });
+});
+server.listen(8080);
+```
+
+Finalize agora os outros 5 endpoints, modificando o arquivo `tarefas-api.js`:
+
+```js
+const tarefas = require('./tarefas-modelo');
+
+
+function extrairId(path) {
+    const partes = path.split('/');
+    return parseInt(partes[2]);
+}
+
+
+function get(req, res, data, path, queryParams) {
+    const filtro = queryParams['filtro'];
+    const registros = tarefas.listar(filtro);
+    res.write(JSON.stringify(registros.map(x => {
+        return {
+            id: x.id,
+            descricao: x.descricao,
+            concluida: x.conclusao != null
+        };
+    })));
+}
+
+
+function getById(req, res, data, path, queryParams) {
+    const id = extrairId(path);
+    const registro = tarefas.buscarPorId(id);
+    res.write(JSON.stringify({
+        descricao: registro.descricao,
+        criacao: registro.criacao,
+        conclusao: registro.conclusao,
+        previsao: registro.previsao
+    }));
+}
+
+
+function post(req, res, data, path, queryParams) {
+    const obj = JSON.parse(data);
+    const descricao = obj['descricao'];
+    const previsao = obj['previsao'] ?
+        new Date(obj['previsao']) : null;
+    const registro = new tarefas.Tarefa(descricao, previsao);
+    tarefas.cadastrar(registro);
+}
+
+
+function del(req, res, data, path, queryParams) {
+    const id = extrairId(path);
+    tarefas.excluir(id);
+}
+
+
+function finalizar(req, res, data, path, queryParams) {
+    const id = extrairId(path);
+    tarefas.concluir(id);
+}
+
+
+function reabrir(req, res, data, path, queryParams) {
+    const id = extrairId(path);
+    tarefas.reabrir(id);
+}
+
+
+function alterarDescricao(req, res, data, path, queryParams) {
+    const id = extrairId(path);
+    const descricao = data;
+    tarefas.alterarDescricao(id, descricao);
+}
+
+
+function alterarPrevisao(req, res, data, path, queryParams) {
+    const id = extrairId(path);
+    const previsao = new Date(data);
+    tarefas.alterarPrevisao(id, previsao);
+}
+
+
+module.exports.processar = function (req, res, data, path, queryParams) {
+    const method = req.method;
+    if (method == 'GET' && path.startsWith('/tarefas/')) {
+        getById(req, res, data, path, queryParams);
+    } else if (method == 'GET' && path === '/tarefas') {
+        get(req, res, data, path, queryParams);
+    } else if (method == 'POST' && path === '/tarefas') {
+        post(req, res, data, path, queryParams);
+    } else if (method == 'DELETE' && path.startsWith('/tarefas/')) {
+        del(req, res, data, path, queryParams);
+    } else if (method == 'POST' && path.endsWith('/finalizar')) {
+        finalizar(req, res, data, path, queryParams);
+    } else if (method == 'POST' && path.endsWith('/reabrir')) {
+        reabrir(req, res, data, path, queryParams);
+    } else if (method == 'PUT' && path.endsWith('/descricao')) {
+        alterarDescricao(req, res, data, path, queryParams);
+    } else if (method == 'PUT' && path.endsWith('/previsao')) {
+        alterarPrevisao(req, res, data, path, queryParams);
+    } else {
+        res.statusCode = 404;
+    }
+}
+```
+
+Teste novamente. Note que qualquer erro causa indisponibilidade completa da aplicação. É possível melhorar isso no arquivo `main.js`, envolvendo todo o processo interno em um `try/catch`:
+
+```js
+req.on('end', () => {
+    try {
+        const url = req.url.split('?');
+        const path = url[0];
+        const queryParams = url.length > 1 ? querystring.parse(url[1]) : {};
+        if (path.startsWith('/tarefas')) {
+            tarefas.processar(req, res, data, path, queryParams);
+        } else {
+            res.statusCode = 404;
+        }
+    } catch (err) {
+        console.error(err);
+        res.statusCode = 500;
+    } finally {
+        res.end();
+    }
+});
+```
+
+Note que isso só funciona pois o processamento interno foi todo desenvolvido de forma síncrona. Na prática isso não iria acontecer, e além desse `try/catch` uma estrutura de promessas teria que ser usada para capturar todos os possíveis casos de tabela.
+
+Uma outra pequena melhoria possível é a escrita do Header de resposta `Content-Type: application/json`, isso ajuda a ferramentas como o Postman (e as bibliotecas de HTTP dos frameworks web) a entenderem como processar a resposta. Isso pode ser feito de modo genérico direto no `main.js`:
+
+```js
+req.on('end', () => {
+    try {
+        res.setHeader('Content-Type', 'application/json');
+        const url = req.url.split('?');
+        const path = url[0];
+```
+
+[1] https://nodejs.org/api/http.html
+
+[2] https://nodejs.org/api/http2.html
+
+[3] https://nodejs.org/api/https.html
+
+## Consumindo a API usando um front-end Angular
 
 TODO:
 
-- Principais diferenças do Node.js com o JavaScript do navegador: cadê o DOM? módulos com CommonJS, API de acesso ao sistema de arquivos, API para servir HTTP, API para clusterização, API de eventos.
-
-https://nodejs.org/dist/latest-v10.x/docs/api/modules.html
-
-- Desenvolvimento dos seguintes endpoints (junto com um front-end básico usando Angular puro) usando nada além do fornecido direto no nodejs:
-
-GET /crypto-currencies
-POST /crypto-currencies
-GET/PUT/PATCH/DELETE /crypto-currencies/{id}
-PUT /crypto-currencies/{id}/exchange-rates
-POST /crypto-currencies/exchange-rates
-  json, csv
-GET /crypto-currencies/exchange-rates/quote?from=&to=
-
-- Adição de mecanismo de segurança (Basic, via login com sessão usando node-session e via JWT).
+- Consumo usando Angular
+- Exercícios
