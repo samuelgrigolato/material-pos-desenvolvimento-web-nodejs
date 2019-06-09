@@ -444,6 +444,71 @@ Agora sim a implementação está bem legível, sem comprometer a performance. N
 
 ### Múltiplos processos
 
+Hoje em dia dificilmente se fala em computadores com um único núcleo de processamento. Com base nisso, como garantir que sua aplicação, principalmente se ela for um servidor, está adequadamente aproveitando todos os recursos da máquina? Com a programação multi-thread, a solução é garantir que o trabalho de processamento fique adequadamente distribuído em threads cujo número seja no mínimo igual à quantidade de processadores disponíveis. Mas e no Node.js?
+
+Considere o seguinte exemplo, e monitore a execução desse código (usando algo como `htop` ou o Gerenciador de Tarefas):
+
+```js
+const startInMillis = new Date().getTime();
+let soma = 0;
+for (let i = 0; i < 10000000000; i++) {
+    soma += i;
+}
+console.log(soma);
+const endInMillis = new Date().getTime();
+const durationInMillis = endInMillis - startInMillis;
+console.log(durationInMillis);
+```
+
+Note que o processamento fica todo em um único núcleo. Como aproveitar todo o recurso disponível nestes casos? Para esse tipo de situação existe o módulo `cluster`, capaz de criar processos filhos que podem acabar sendo agendados em núcleos diferentes do processador. Veja o exemplo reescrito:
+
+```js
+const cluster = require('cluster');
+
+if (cluster.isWorker) {
+
+    cluster.worker.on('message', message => {
+        let soma = 0;
+        for (let i = message.inicio; i < message.fim; i++) {
+            soma += i;
+        }
+        console.log(`Worker: ${soma}`);
+        cluster.worker.send(soma);
+        cluster.worker.disconnect();
+    });
+
+} else {
+
+    let recebidos = 0;
+    let soma = 0;
+    cluster.on('message', (_, message) => {
+        soma += message;
+        recebidos++;
+        if (recebidos == NUMERO_DE_PROCESSOS) {
+            console.log(`Master: ${soma}`);
+        }
+    });
+
+    const workers = [];
+    const NUMERO_DE_PROCESSOS = 4;
+    for (let i = 0; i < NUMERO_DE_PROCESSOS; i++) {
+        workers.push(cluster.fork());
+    }
+
+    const TOTAL_PARCELAS = 100000000000;
+    const PARCELAS_POR_PROCESSO = TOTAL_PARCELAS / NUMERO_DE_PROCESSOS;
+    for (let i = 0; i < NUMERO_DE_PROCESSOS; i++) {
+        workers[i].send({
+            inicio: PARCELAS_POR_PROCESSO * i,
+            fim: PARCELAS_POR_PROCESSO * (i + 1)
+        });
+    }
+
+}
+```
+
+Note que dificilmente o desenvolvedor usa esses módulos diretamente, mas é importante entender como os frameworks utilizados fazem o que fazem, isso ajuda na depuração de problemas e na concepção de soluções para problemas não tão comuns.
+
 ### Servindo HTTP
 
 ## Desenvolvendo uma API HTTP
