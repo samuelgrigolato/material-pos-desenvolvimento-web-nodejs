@@ -210,6 +210,106 @@ Uma ferramenta muito importante para se ter enquanto desenvolvedor de software �
 
 ### Módulos
 
+Virtualmente todas as linguagens de programação oferecem alguma maneira de divisão de código em *partes*. Algumas chamam-as de *pacotes*, outras de *módulos*, etc.
+
+O JavaScript puro não oferecia esse conceito, mas conforme a sua evolução essa capacidade foi incorporada, e hoje faz parte da especificação da linguagem (ES6+) [1].
+
+Note que também existe um gestor de dependências/pacotes para Node.js, chamado `npm`, mas este não será apresentado por enquanto.
+
+Considere o seguinte código:
+
+```js
+const a = 3;
+const b = 10;
+console.log(a + b);
+```
+
+`a + b` aqui representa uma potencial operação de negócio, que eventualmente será reutilizada em outros pontos do projeto. Quando isso acontecer, como fazer para evitar a duplicação do código? Comece criando um outro arquivo, chamado `soma.js`, com o seguinte código:
+
+```js
+module.exports = function (a, b) {
+  return a + b;
+};
+```
+
+E ajuste o arquivo anterior:
+
+```js
+const soma = require('./soma');
+
+const a = 3;
+const b = 10;
+console.log(soma(a, b));
+```
+
+Repare que desse modo, um único objeto (seja ele um valor, uma função, uma classe, etc.) é exportado pelo módulo. Também é possível exportar vários elementos. Crie um arquivo `operacoes.js` com o seguinte código:
+
+```js
+module.exports.PI = 3.1415;
+
+module.exports.soma = function (a, b) {
+    return a + b;
+};
+
+module.exports.sub = function (a, b) {
+    return a - b;
+};
+
+module.exports.mult = function (a, b) {
+    return a * b;
+};
+
+module.exports.div = function (a, b) {
+    return a / b;
+};
+```
+
+E adicione o seguinte código no script original:
+
+```js
+const operacoes = require('./operacoes');
+console.log(operacoes.PI * 2);
+console.log(operacoes.soma(10, 3));
+console.log(operacoes.sub(10, 3));
+console.log(operacoes.mult(10, 3));
+console.log(operacoes.div(10, 3));
+```
+
+Para os familiarizados com Angular e TypeScript (que permitem o uso da sintaxe de módulos do ES6), o equivalente em um projeto com essas tecnologias seria:
+
+```js
+// soma.js
+export default function (a, b) {
+  return a + b;
+}
+```
+
+```js
+// operacoes.js
+export const PI = 3.1415;
+export function soma(a, b) {
+  return a + b;
+}
+export function sub(a, b) {
+  return a - b;
+}
+[...]
+```
+
+```js
+// script.js
+import soma from './soma.js';
+import * as operacoes from './operacoes.js';
+import { PI, soma, sub } from './operacoes.js'; // preferível
+[...]
+```
+
+Infelizmente a sintaxe de módulos do ES6 ainda é experimental no Node.js, portanto seu uso ainda não é apropriado [2].
+
+[1] https://medium.com/sungthecoder/javascript-module-module-loader-module-bundler-es6-module-confused-yet-6343510e7bde.
+
+[2] https://nodejs.org/api/esm.html#esm_introduction
+
 ### Eventos
 
 ### Sistema de arquivos
