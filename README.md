@@ -23,3 +23,17 @@ Carga horária: 40 horas.
 * [03 - Knex](03_Knex.md)
 * [04 - Stateless vs stateful](04_Stateless_vs_stateful.md)
 * [05 - Cache](05_Cache.md)
+
+## Gerando PDF
+
+Instale a ferramenta `md-to-pdf`:
+
+```
+npm i -g md-to-pdf
+```
+
+Depois execute o seguinte comando:
+
+```
+md2pdf <arquivo.md> --launch-options '{ "args": ["--no-sandbox"] }'
+```

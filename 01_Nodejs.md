@@ -34,15 +34,15 @@ Durante o processamento da requisição HTTP, o servidor produz uma *resposta*, 
 
 * **Status Code:** um valor numérico que indica de maneira geral o resultado daquela requisição. Dividida em 6 principais grupos, de acordo com a *centena* do código: 1xx (informativo), 2xx (sucesso), 3xx (redirecionamento), 4xx (erro do cliente), 5xx (erro no servidor). Alguns exemplos clássicos: 404 (página não encontrada), 403 (não autorizado), 301 (redirecionamento permanente), 200 (sucesso).
 
-¹ Atualmente existem outras formas de se efetuar essa comunicação, como WebSockets, mas para fins de simplificar a revisão essas outras tecnologias foram desconsideradas.
-
 * **Cabeçalhos:** a resposta também contém cabeçalhos, assim como a requisição. Um exemplo é o cabeçalho `Content-Type`, que descreve o formato do corpo da resposta.
 
 * **Corpo:** quando aplicável, uma resposta pode conter um corpo, seja ele uma imagem, uma página HTML, um objeto JSON, um PDF para download, ou qualquer outra coisa.
 
+¹ Atualmente existem outras formas de se efetuar essa comunicação, como WebSockets, mas para fins de simplificar a revisão essas outras tecnologias foram desconsideradas.
+
 ## Front-end (lado do cliente)
 
-É possível observar que ao desenvolver uma aplicação web, é necessário se preocupar com pelo menos dois componentes: o navegador, responsável pela interação com o usuário, e o servidor, responsável por processas as requisições.
+É possível observar que ao desenvolver uma aplicação web, é necessário se preocupar com pelo menos dois componentes: o navegador, responsável pela interação com o usuário, e o servidor, responsável por processar as requisições.
 
 Como funciona então o desenvolvimento no lado do cliente? Não é regra, mas normalmente se espera o uso de um *navegador web* (Chrome, Firefox, Edge, Safari, etc.). Esses navegadores estão preparados para mostrar páginas HTML, que por sua vez podem depender de folhas de estilo CSS e código JavaScript.
 
@@ -60,18 +60,18 @@ Composto por um *servidor web*, capaz de aceitar as requisições HTTP, e normal
 
 Os navegadores executam JavaScript de modo Single Thread e seguindo uma arquitetura baseada em eventos. Mas o que exatamente isso significa?
 
-Um processo no sistema operacional pode iniciar uma ou mais *threads*. De modo simplificado, cada *thread* é uma sequência de execução, podendo ou não serem executadas paralelamente (em máquinas com mais de um núcleo). Mesmo com um único núcleo, as *threads* normalmente são *escalonadas* pelo sistema operacional de modo a darem a impressão de paralelismo através de execução concorrente.
+Um processo no sistema operacional pode iniciar uma ou mais *threads*. De modo simplificado, cada *thread* é uma sequência de execução, podendo ou não ser executada paralelamente às outras (em máquinas com mais de um núcleo). Mesmo com um único núcleo, as *threads* normalmente são *escalonadas* pelo sistema operacional de modo a darem a impressão de paralelismo através de execução concorrente.
 
 O desenvolvimento *multi-thread* traz consigo um conjunto de desafios, principalmente quando há o compartilhamento de *recursos* (periféricos, sistema de arquivos, etc.) e *estado* (memória).
 
-Na concepção do JavaScript, foi definido que a execução se daria em uma única thread (pelo menos do ponto de vista do desenvolvedor, nada impede, e isso de fato ocorre, que motores JavaScript executem em múltiplas threads, desde que isso fique abstraído do desenvolvedor final). Mas isso soa bem engessado, como as aplicações conseguem atingir níveis de responsividade e dinamismo sem a capacidade de executar código de forma concorrente/paralela?
+Na concepção do JavaScript, foi definido que a execução se daria em uma única thread (pelo menos do ponto de vista do desenvolvedor. Nada impede, e isso de fato ocorre, que motores JavaScript executem em múltiplas threads, desde que isso fique abstraído do desenvolvedor final). Mas isso soa bem engessado. Como as aplicações conseguem atingir níveis de responsividade e dinamismo sem a capacidade de executar código de forma concorrente/paralela?
 
 É verdade que não há como executar código JavaScript de forma *paralela*, mas a *concorrência* pode ser atingida sim, através de um conceito chamado *Event Loop*.
 
 Todo motor de JavaScript implementa um loop de eventos, basicamente composto por uma fila de tarefas. Todo código JavaScript é uma tarefa chamada por esse loop, seja essa tarefa criada por um evento de usuário (clique em um botão) ou evento de navegador (término do carregamento de uma página, término de uma requisição AJAX, término do tempo de espera de temporizadores, etc.). Considere o seguinte exemplo:
 
 ```html
-<!DOCTYPE>
+<!DOCTYPE html>
 <html>
 <body onload="digaOi()">
   <script>
@@ -88,7 +88,7 @@ Todo motor de JavaScript implementa um loop de eventos, basicamente composto por
 </html>
 ```
 
-O loop de eventos inicia processando a tag `script`, que define a função `digaOi`, registra uma outra tarefa para ser executada depois de 5 segundos (note que isso só é possível pois funções são *cidadãos de primeira classe* no JavaScript, o método `setTimeout` está recebendo uma função como parâmetro), e por fim escreve um texto no console do navegador. Assim que a página termina de ser processada, o próprio navegador executa o script contido no atributo `onload` do elemento `body`. E também, sempre que o usuário clica no botão "Diga oi!", uma tarefa é registrada no loop de eventos, responsável por executar o script do atributo `onclick` deste botão.
+O loop de eventos inicia processando a tag `script`, que define a função `digaOi`, registra uma outra tarefa para ser executada depois de 5 segundos (note que isso só é possível pois funções são *cidadãs de primeira classe* no JavaScript, o método `setTimeout` está recebendo uma função como parâmetro), e por fim escreve um texto no console do navegador. Assim que a página termina de ser processada, o próprio navegador executa o script contido no atributo `onload` do elemento `body`. E também, sempre que o usuário clica no botão "Diga oi!", uma tarefa é registrada no loop de eventos, responsável por executar o script do atributo `onclick` deste botão.
 
 Note que nada aqui foi executado de modo paralelo, mas a ideia de concorrência é fortemente presente graças ao uso de um loop de eventos.
 
@@ -97,7 +97,7 @@ Note que nada aqui foi executado de modo paralelo, mas a ideia de concorrência 
 Esse modelo de execução gerou um padrão de codificação muito difundido em aplicações web, na parte do front-end: a execução de requisições HTTP iniciadas pelo próprio JavaScript, de modo assíncrono. Quando uma resposta é recebida, um *callback* é disparado, ou em outras palavras, o navegador coloca uma tarefa no loop de eventos para executar uma função passando a resposta da requisição, seja ela positiva ou não. Veja o exemplo:
 
 ```html
-<!DOCTYPE>
+<!DOCTYPE html>
 <html>
 <body>
   <script>
@@ -141,7 +141,7 @@ Para verificar se você já possui uma instalação, ou se a que acabou de fazer
 node -v
 ```
 
-Se o comando retornar um número de versão, sem falha, significa que deu certo. Garanta que você possui pelo menos a última versão `LTS` (`v.10.16` no momento da escrita deste material) ou superior para evitar problemas no decorrer da disciplina.
+Se o comando retornar um número de versão, sem falha, significa que deu certo. Garanta que você possui a versão 12 ou superior para evitar problemas no decorrer da disciplina.
 
 ### Node Version Manager (NVM)
 
@@ -312,7 +312,7 @@ Infelizmente a sintaxe de módulos do ES6 ainda é experimental no Node.js, port
 
 ### Sistema de arquivos
 
-Uma das melhores maneiras de aprender uma nova linguagem é aplicando conceitos já conhecidos em outras, e comparar as soluçõeses obtidas.
+Uma das melhores maneiras de aprender uma nova linguagem é aplicando conceitos já conhecidos em outras, e comparar as soluções obtidas.
 
 Um desses conceitos bem comuns é a manipulação do sistema de arquivos. O Node.js fornece uma API para isso [1], evidentemente. Veja o exemplo abaixo de leitura de um arquivo:
 
@@ -1158,7 +1158,7 @@ export class AppComponent implements OnInit {
 }
 ```
 
-Ao testar, o navegador não vai permitir a finalização da chamada, devido a um mecanismo de segurança chamado CORS (Cross-Origin Resource Sharing). Existem muitas maneiras de lidar com CORS, a mais fácil delas é adicionar um header em todas as respostas, permitindo que qualquer host efetue a chamada. Faça isso no arquivo `main.js` (note que isso é feito no back-end, e não no front-end):
+Ao testar, o navegador não vai permitir a finalização da chamada, devido a um mecanismo de segurança chamado CORS (Cross-Origin Resource Sharing). Existem muitas maneiras de lidar com CORS, a mais fácil (e insegura) delas é adicionar um header em todas as respostas, permitindo que qualquer host efetue a chamada. Faça isso no arquivo `main.js` (note que isso é feito no back-end, e não no front-end):
 
 ```js
 req.on('data', chunk => {
