@@ -258,13 +258,48 @@ Algumas observações:
 
 A decisão entre usar o Express Generator ou não cabe a cada equipe, mas normalmente o ideal é começar do zero, adicionando apenas aquilo que o projeto de fato necessita. O valor desse tipo de ferramenta está na fase de aprendizado, para aqueles que querem ter algo funcionando para então ter uma ideia daquilo que é considerado boa prática.
 
+## Middlewares
+
+Antes de refazer o CRUD de tarefas usando Express, vale discutir sobre o conceito de `Middlewares`. Um Middleware, dentro do Express, nada mais é uma função que será chamada para todas as requisições, capaz de enriquecer os dados da requisição/resposta, finalizar uma resposta automaticamente (tratamento de erros, segurança, etc), dentre outras. Uma forma de ver é comparar com o conceito de `plug-in`. Veja o exemplo abaixo, que demonstra o funcionamento dos middlewares na implementação de auditoria e segurança (bem rudimentares):
+
+```js
+const express = require('express');
+const url = require('url');
+const app = express();
+
+app.use((req, res, next) => {
+    console.log('Interceptando a requisição: ', req.url);
+    const reqUrl = url.parse(req.url, true);
+    if (reqUrl.path.startsWith('/admin')) {
+        const senha = req.header('X-SenhaAdmin');
+        if (senha === 'senha123') {
+            next();
+        } else {
+            res.status(403).send('Apenas administradores podem acessar este recurso');
+        }
+    } else {
+        next();
+    }
+});
+
+app.get('/clientes', (req, res) => res.send(['João', 'Maria']));
+
+app.get('/admin/clientes/restritos', (req, res) => res.send(['João']));
+
+app.listen(3000);
+```
+
+Note que esse não é nem de longe um código pronto para ser usado em um projeto real, tente acessar `http://localhost:3000/Admin/clientes/restritos` (com o A maiúsculo) por exemplo e veja o motivo. Questões críticas como segurança devem ser implementadas com muito cuidado, e preferencialmente delegadas para bibliotecas/frameworks especializados nisso. No entanto, como o objetivo aqui é exercitar o desenvolvimento de middlewares customizados, a fragilidade não tem tanta importância.
+
+Por mais que seja possível e até incentivado o desenvolvimento de middlewares customizados, o mais comum é que pacotes de funcionalidades externos sejam adicionados dessa forma, como é o caso do middleware `express.static` que vimos na seção anterior.
+
 TODO:
 
-- Middlewares
 - CRUD de tarefas refeito
     - Arquivos estáticos (front html, JS e CSS simples)
     - Roteamento (mountable routers)
     - Validação de dados de entrada e saída
+        https://express-validator.github.io/docs/
     - Tratamentos de casos excepcionais
 - Trabalhando com anexos (upload)
     - Tratar imagens de forma especial (crop/resize?)
