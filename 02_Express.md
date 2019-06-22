@@ -175,6 +175,57 @@ E se estiver se sentindo aventureiro, pode até mesmo aceitar qualquer versão d
 
 [2] https://docs.npmjs.com/misc/semver
 
+## Instalação do Express e primeiro projeto
+
+Agora que ficou claro o uso do `npm`, é possível iniciar um novo projeto e adicionar o framework `express` como dependência. Vá até um diretório vazio na sua máquina e digite o seguinte comando:
+
+```
+npm init
+```
+
+Se o seu projeto não vai ser consumido por outros como uma biblioteca, é uma boa ideia remover o atributo `main` e adicionar `private: true` no arquivo `package.json` que foi gerado.
+
+Adicione agora a dependência para a versão mais recente do Express:
+
+```
+npm install express
+```
+
+O que é esse arquivo `package-lock.json` que foi criado? Está fora do escopo desta disciplina, mas duas ótimas discussões sobre este arquivo podem ser encontradas aqui: https://renovatebot.com/docs/dependency-pinning/ e aqui: https://github.com/commitizen/cz-conventional-changelog-default-export/pull/4#issuecomment-358038966.
+
+Agora crie um arquivo chamado `index.js`, colocando o conteúdo abaixo:
+
+```js
+const express = require('express');
+const app = express()
+
+
+app.get('/ola', (req, res) => {
+    const nome = req.query.nome;
+    res.send(`Olá, ${nome}!`);
+});
+
+app.listen(3000, () => {
+    console.log('Primeira API com Express.');
+});
+```
+
+Note que já é possível observar algumas diferenças drásticas com relação ao tópico anterior. Primeiro, não foi necessário fechar a resposta, o próprio método `send` já faz isso. Segundo, o objeto `req` vem enriquecido com dados da requisição, não há a necessidade de processar esses dados na mão. Terceiro, o roteamento fica muito mais simples, por padrão a resposta sempre será 404, a não ser que o caminho e método se mostre compatível a alguma das chamadas no estilo `app.get`. Veja esse outro exemplo, envolvendo parâmetros de caminho e corpo:
+
+```js
+app.use(express.json());
+
+app.post('/pessoas/:id/telefones', (req, res) => {
+    const idPessoa = req.params.id;
+    const telefone = req.body;
+    console.log(idPessoa);
+    console.log(telefone);
+    res.send();
+});
+```
+
+Note que o atributo `body` só ficou disponível depois de instalarmos um `middleware` de processamento de corpo de requisição.
+
 TODO:
 
 - Instalação e primeiro projeto
