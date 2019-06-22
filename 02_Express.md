@@ -293,11 +293,77 @@ Note que esse não é nem de longe um código pronto para ser usado em um projet
 
 Por mais que seja possível e até incentivado o desenvolvimento de middlewares customizados, o mais comum é que pacotes de funcionalidades externos sejam adicionados dessa forma, como é o caso do middleware `express.static` que vimos na seção anterior.
 
+## Refazendo o CRUD de tarefas
+
+Para continuar demonstrando o uso do Express, vale refazer alguns endpoints do tópico anterior. Como ainda não será utilizado Knex e uma base relacional, o módulo `tarefas/tarefas-modelo.js` pode ser copiado do jeito que estava, para este novo projeto.
+
+Comece criando um novo projeto Express:
+
+```
+npm init
+npm i express
+```
+
+E criando um arquivo `index.js` com o seguinte conteúdo:
+
+```js
+const express = require('express');
+const app = express();
+
+app.use(express.json());
+
+app.listen(3000);
+```
+
+Por mais que seja possível implementar todos os endpoints direto neste arquivo, conforme o projeto cresce essa prática fica completamente inviável. A solução do Express para este problema de modularização é a definição de `Routers`. Crie uma pasta chamada `tarefas`, com um arquivo chamado `tarefas-router.js` dentro dela, com o seguinte conteúdo:
+
+```js
+const express = require('express');
+const router = express.Router();
+
+const modelo = require('./tarefas-modelo');
+
+
+router.get('/', (req, res) => {
+    res.send(modelo.listar(req.query.filtro));
+});
+
+router.get('/:id', (req, res) => {
+    res.send(modelo.buscarPorId(req.params.id));
+});
+
+router.post('/', (req, res) => {
+    const body = req.body;
+    const tarefa = new modelo.Tarefa(body.descricao, body.previsao);
+    modelo.cadastrar(tarefa);
+    res.send();
+});
+
+module.exports = router;
+```
+
+Copie o `tarefas-modelo.js` desenvolvido na seção anterior para a pasta `tarefas`.
+
+Por fim, ajuste o `index.js` para configurar o router como se ele fosse um middleware (de fato todo router é um middleware de uma aplicação Express):
+
+```js
+const express = require('express');
+const app = express();
+
+const tarefasRouter = require('./tarefas/tarefas-router');
+
+
+app.use(express.json());
+app.use('/tarefas', tarefasRouter);
+
+app.listen(3000);
+```
+
+Tire um tempo para comparar essa solução com a do tópico anterior, especialmente as partes que ficaram abstraídas pelo Express.
+
 TODO:
 
 - CRUD de tarefas refeito
-    - Arquivos estáticos (front html, JS e CSS simples)
-    - Roteamento (mountable routers)
     - Validação de dados de entrada e saída
         https://express-validator.github.io/docs/
     - Tratamentos de casos excepcionais
