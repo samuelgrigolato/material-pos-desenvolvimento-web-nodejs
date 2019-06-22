@@ -469,7 +469,108 @@ router.post('/',
 module.exports = router;
 ```
 
-As duas formas possuem prós e contras, cabe a equipe do projeto decidir qual ou quais usar no código-fonte.
+As duas formas possuem prós e contras, cabe à equipe do projeto decidir qual ou quais usar no código-fonte.
+
+## Autenticação e autorização
+
+Boa parte das aplicações não triviais possui a necessidade de autenticar seus usuários, e autorizar o acesso a funcionalidades e dados. No caso do CRUD de tarefas, pode-se pensar em autenticação como um formulário que solicita usuário e senha, e autorização como permitir apenas que o usuário visualize e altere suas próprias tarefas. Um exemplo mais complicado de autenticação seria por exemplo integrar com o Google Accounts, e um exemplo de autorização seria permitir que um usuário compartilhasse tarefas com outros, que passariam a ter acesso àqueles dados e talvez até a modificá-los.
+
+Existem muitas técnicas para implementar autorização em chamadas de API, mas normalmente elas giram em torno de passar no header de requisição `Authorization` um valor, seja ele qual for, capaz de provar para o servidor que quem submeteu aquela requisição é quem diz ser.
+
+Uma delas é a chamada autorização `Basic`, onde o usuário e senha são passados em cada requisição feita para o servidor. Para implementar essa autorização, o primeiro passo é responder com status code `401` as requisições que não possuírem nenhum valor no header `Authorization`:
+
+```js
+const express = require('express');
+const app = express();
+
+const tarefasRouter = require('./tarefas/tarefas-router');
+
+app.use((req, res, next) => {
+    const auth = req.header('Authorization');
+    if (!auth || !auth.startsWith('Basic ')) {
+        res.status(401)
+            .header('WWW-Authenticate', 'Basic realm="tarefas"')
+            .send();
+    } else {
+        next();
+    }
+});
+
+app.use(express.json());
+app.use('/tarefas', tarefasRouter);
+
+app.listen(3000);
+```
+
+Note que, ao abrir uma URL no navegador, ele vai mostrar um diálogo solicitando usuário e senha.
+
+O próximo passo é de fato checar as credenciais contra qualquer que seja a base de dados de usuários:
+
+```js
+const express = require('express');
+const app = express();
+
+const tarefasRouter = require('./tarefas/tarefas-router');
+
+app.use((req, res, next) => {
+    const auth = req.header('Authorization');
+    if (!auth || !auth.startsWith('Basic ')) {
+        res.status(401)
+            .header('WWW-Authenticate', 'Basic realm="tarefas"')
+            .send();
+    } else {
+        const token = auth.substr('Basic '.length);
+        const [ user, pass ] = Buffer.from(token, 'base64').toString('UTF-8').split(':');
+        if (user == 'samuel' && pass == '123') {
+            next();
+        } else {
+            res.status(403).send();
+        }
+    }
+});
+
+app.use(express.json());
+app.use('/tarefas', tarefasRouter);
+
+app.listen(3000);
+```
+
+Ao invés de implementar tudo isso na mão (e acabar com código confuso responsável por fazer conversão de base64 e manipulação de strings), mais uma vez é possível usar bibliotecas de middleware contribuídas de forma aberta pela comunidade. Adicione no projeto a dependência `express-basic-auth`:
+
+```
+npm i express-basic-auth
+```
+
+E configure o middleware na aplicação:
+
+```js
+const express = require('express');
+const basicAuth = require('express-basic-auth');
+const app = express();
+
+const tarefasRouter = require('./tarefas/tarefas-router');
+
+app.use(basicAuth({
+    users: {
+        'samuel': '123',
+        'admin': '234'
+    },
+    realm: 'tarefas',
+    challenge: true
+}));
+
+app.use((req, res, next) => {
+    console.log(req.auth);
+    next();
+});
+
+app.use(express.json());
+app.use('/tarefas', tarefasRouter);
+
+app.listen(3000);
+```
+
+Repare que, como demonstrado no middleware customizado, o `express-basic-auth` disponibiliza os dados do usuário autenticado no atributo `auth` da requisição, permitindo por exemplo que apenas as tarefas daquele usuário sejam retornadas.
 
 TODO:
 
@@ -478,5 +579,4 @@ TODO:
         https://stackoverflow.com/questions/13938686/can-i-load-a-local-file-into-an-html-canvas-element
         https://github.com/fengyuanchen/cropperjs/blob/master/README.md#features
 - Adicionando segurança (login)
-    basic
     jwt no localstorage/sessionstorage
