@@ -337,7 +337,7 @@ Repare que o retorno é um objeto do tipo `Buffer`. Isso ocorre pois o Node.js n
   console.log(data);
   ```
 
-Note que essas operações são síncronas, e como já discutido, o Node.js executa em uma única thread sobre um loop de eventos. Basicamente o que isso significa é que se o arquivo lido for muito grande, o processo (sua aplicação) inteira vai ficar parada aguardando o carregando dos dados.
+Note que essas operações são síncronas, e como já discutido, o Node.js executa em uma única thread sobre um loop de eventos. Basicamente o que isso significa é que se o arquivo lido for muito grande, o processo (sua aplicação) inteira vai ficar parada aguardando o carregamento dos dados.
 
 Isso é definitivamente uma situação indesejada, e é esperado de todo programador Node.js o conhecimento das APIs assíncronas (elas existem para todos os lados) equivalentes e um bom julgamento na hora de escolher qual usar (a API assíncrona prioriza a performance, enquanto a API síncrona prioriza a simplicidade do código). Veja como fica o exemplo acima usando a API assíncrona:
 
@@ -609,7 +609,7 @@ module.exports.excluir = function (id) {
 
 Note que esses métodos não estão efetuando nenhum tipo de validação nos dados, eles servem apenas para fins ilustrativos.
 
-Teste esse módulo usando o REPL do Node. Para isso, bbasta executar o comando `node`, importar o módulo via `require` e usar os métodos dele, ex:
+Teste esse módulo usando o REPL do Node. Para isso, basta executar o comando `node`, importar o módulo via `require` e usar os métodos dele, ex:
 
 ```sh
 $ node
