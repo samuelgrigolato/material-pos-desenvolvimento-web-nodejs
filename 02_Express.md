@@ -361,18 +361,122 @@ app.listen(3000);
 
 Tire um tempo para comparar essa solução com a do tópico anterior, especialmente as partes que ficaram abstraídas pelo Express.
 
+## Validação de dados de entrada
+
+Uma das características discutidas no início deste tópico foi a validação de dados de entrada. O framework Express não possui nada nativo com relação a isso (exceto a conversão automática de `json`, que já vem sendo usada nas seções anteriores), mas a comunidade criou várias bibliotecas que permitem adicionar esse tipo de validação no seu projeto. Uma delas é a `express-validator`. Existem várias maneiras de usá-la, e neste tópico serão apresentadas duas delas. Primeiro instale a ferramenta no projeto:
+
+```
+npm i express-validator
+```
+
+A primeira forma de usá-la é adicionando uma lista de validações como middlewares em cada endpoint. Veja:
+
+```js
+const express = require('express');
+const { check, validationResult } = require('express-validator');
+const router = express.Router();
+
+const modelo = require('./tarefas-modelo');
+
+
+router.get('/', (req, res) => {
+    res.send(modelo.listar(req.query.filtro));
+});
+
+router.get('/:id', (req, res) => {
+    res.send(modelo.buscarPorId(req.params.id));
+});
+
+router.post('/',
+    check('descricao').isLength({ min: 3, max: 100 })
+        .withMessage('Deve ser um valor entre 3 e 100 caracteres.'),
+    check('previsao').toDate().not().isEmpty()
+        .withMessage('Deve ser uma data válida.'),
+    (req, res) => {
+
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            res.status(400).json({ errors: errors.array() });
+            return;
+        }
+
+        const body = req.body;
+        const previsao = body.previsao.toISOString();
+        const tarefa = new modelo.Tarefa(body.descricao, previsao);
+        modelo.cadastrar(tarefa);
+        res.send();
+    });
+
+module.exports = router;
+```
+
+A parte importante aqui é a inclusão da dependência `express-validator`, o uso de cadeias de validação (chamadas `check` no handler de cadastro de tarefa) e o uso do método `validationResult` para verificar se houve erro de validação ou não, antes de prosseguir com o tratamento normal da requisição.
+
+A outra maneira é através do uso do middleware `checkSchema`:
+
+```js
+const express = require('express');
+const { checkSchema, validationResult } = require('express-validator');
+const router = express.Router();
+
+const modelo = require('./tarefas-modelo');
+
+
+router.get('/', (req, res) => {
+    res.send(modelo.listar(req.query.filtro));
+});
+
+router.get('/:id', (req, res) => {
+    res.send(modelo.buscarPorId(req.params.id));
+});
+
+router.post('/',
+    checkSchema({
+        descricao: {
+            in: 'body',
+            errorMessage: 'Deve ser um valor entre 3 e 100 caracteres.',
+            isLength: {
+                options: {
+                    min: 3,
+                    max: 100
+                }
+            }
+        },
+        previsao: {
+            in: 'body',
+            errorMessage: 'Deve ser uma data válida.',
+            toDate: true,
+            isEmpty: {
+                negated: true
+            }
+        }
+    }),
+    (req, res) => {
+
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            res.status(400).json({ errors: errors.array() });
+            return;
+        }
+
+        const body = req.body;
+        const previsao = body.previsao.toISOString();
+        const tarefa = new modelo.Tarefa(body.descricao, previsao);
+        modelo.cadastrar(tarefa);
+        res.send();
+    });
+
+module.exports = router;
+```
+
+As duas formas possuem prós e contras, cabe a equipe do projeto decidir qual ou quais usar no código-fonte.
+
 TODO:
 
-- CRUD de tarefas refeito
-    - Validação de dados de entrada e saída
-        https://express-validator.github.io/docs/
-    - Tratamentos de casos excepcionais
 - Trabalhando com anexos (upload)
     - Tratar imagens de forma especial (crop/resize?)
         https://stackoverflow.com/questions/13938686/can-i-load-a-local-file-into-an-html-canvas-element
         https://github.com/fengyuanchen/cropperjs/blob/master/README.md#features
 - Adicionando segurança (login)
     basic
-    https://www.npmjs.com/package/express-session
-    guid localstorage/sessionstorage
     jwt no localstorage/sessionstorage
