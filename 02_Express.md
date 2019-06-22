@@ -572,11 +572,102 @@ app.listen(3000);
 
 Repare que, como demonstrado no middleware customizado, o `express-basic-auth` disponibiliza os dados do usuário autenticado no atributo `auth` da requisição, permitindo por exemplo que apenas as tarefas daquele usuário sejam retornadas.
 
+Em um projeto real, dificilmente será utilizada a autenticação básica entre front-end e back-end. Ela serve mais como um legado e ainda é usada em algumas integrações entre back-ends diferentes. Uma outra opção é o uso de tokens, gerados pelo próprio back-end (normalmente em uma função de autenticação, com acesso livre) e capazes de serem validados. Implementações mais antigas seguiam uma lógica mais ou menos parecida com a que segue:
+
+1. Usuário não autenticado era encaminhado para formulário de login;
+2. Usuário submete login e senha;
+3. Servidor valida o usuário e senha, gerando um registro no banco de dados com um *token* aleatório (por exemplo um GUID);
+4. Navegador do usuário armazena esse token e envia no header `Authorization` em cada futura chamada que fizer.
+5. Servidor valida no banco esse token a cada requisição.
+
+Esta estrutura atende, mas além de ser um pouco complexa de implementar, não escala muito bem, visto que toda requisição acaba tendo que validar o token no banco de dados. Uma solução um pouco melhor envolve o uso de JSON Web Tokens. A ideia é que não haja mais a necessidade de armazenar os tokens no banco de dados. O funcionamento detalhado por trás dos JWT está fora do escopo dessa disciplina, e pode ser encontrado aqui: https://jwt.io/.
+
+Para adicionar autenticação via JWT no projeto, instale a dependência `express-jwt`:
+
+```
+npm i express-jwt
+```
+
+Depois configure o middleware, tomando nota do `secret` utilizado (ele deverá ser o mesmo na hora de gerar o token):
+
+```js
+const express = require('express');
+const jwt = require('express-jwt');
+const app = express();
+
+const tarefasRouter = require('./tarefas/tarefas-router');
+
+app.use(jwt({
+    secret: 'tarefasjwtsecret'
+}));
+
+app.use((req, res, next) => {
+    console.log(req.user);
+    next();
+});
+
+app.use(express.json());
+app.use('/tarefas', tarefasRouter);
+
+app.listen(3000);
+```
+
+Note que, diferentemente do `express-basic-auth`, o middleware `express-jwt` disponibiliza os dados do usuário autenticado no atributo `req.user`. Para testar, gere um token no site `https://jwt.io/`, atentando-se para usar o mesmo segredo. Não há formato específico para os `claims` do token, mas é boa prática usar o `sub` (subject, sujeito) para representar o login e `name` para representar o nome do usuário. Também é boa prática definir uma data de expiração na claim `exp`.
+
+Mas como gerar esse token dentro do próprio back-end? Para isso você precisa de uma biblioteca de geração de tokens. Um exemplo para o ecossistema Node.js é a biblioteca `jsonwebtoken`. Instale-a:
+
+```
+npm i jsonwebtoken
+```
+
+Agora adicione um endpoint para processar as requisições de login:
+
+```js
+const express = require('express');
+const jwt = require('express-jwt');
+const jsonwebtoken = require('jsonwebtoken');
+const app = express();
+
+const tarefasRouter = require('./tarefas/tarefas-router');
+
+app.use(jwt({
+    secret: 'tarefasjwtsecret'
+}).unless({ path: '/login' }));
+
+app.use((req, res, next) => {
+    console.log(req.user);
+    next();
+});
+
+app.use(express.json());
+
+app.post('/login', (req, res) => {
+    const { user, pass } = req.body;
+    if (!user || !pass) {
+        res.status(400).send('Informe o usuário e a senha.');
+    } else if (user !== 'samuel' && pass !== '123') {
+        res.status(400).send('Credenciais inválidas.');
+    } else {
+        const token = jsonwebtoken.sign({
+            sub: user,
+            exp: new Date(2020, 1, 1, 10, 30, 0).getTime() / 1000
+        }, 'tarefasjwtsecret');
+        res.send(token);
+    }
+});
+
+app.use('/tarefas', tarefasRouter);
+
+app.listen(3000);
+```
+
+Note que o middleware `jwt` teve que ser alterado ligeiramente para ignorar requisições feitas no caminho `/login`.
+
+Para testar, faça uma requisição POST para o caminho `/login`, passando como corpo um objeto com os atributos `user` e `pass`. Depois, com o JWT recebido na resposta, valide-o no site `https://jwt.io/` e use-o para autenticar chamadas nos endpoints de tarefas. Repare que se você usar uma data já passada no campo `exp` do token, o middleware vai rejeitar a autenticação.
+
 TODO:
 
 - Trabalhando com anexos (upload)
     - Tratar imagens de forma especial (crop/resize?)
         https://stackoverflow.com/questions/13938686/can-i-load-a-local-file-into-an-html-canvas-element
         https://github.com/fengyuanchen/cropperjs/blob/master/README.md#features
-- Adicionando segurança (login)
-    jwt no localstorage/sessionstorage
