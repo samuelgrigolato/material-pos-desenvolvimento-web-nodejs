@@ -226,10 +226,40 @@ app.post('/pessoas/:id/telefones', (req, res) => {
 
 Note que o atributo `body` só ficou disponível depois de instalarmos um `middleware` de processamento de corpo de requisição.
 
+## Express Generator
+
+Existe uma ferramenta de geração de código disponível para usuários de Express, chamada Express Generator. Para utilizá-la, primeiro instale-a usando `npm`:
+
+```
+npm install -g express-generator
+```
+
+Agora, em um diretório, execute o seguinte comando para criar a estrutura básica de um projeto (será criado um diretório com o nome `02_generator`):
+
+```
+express 02_generator
+```
+
+Entre no diretório do projeto e instale as dependências:
+
+```
+npm install
+```
+
+E execute-o com o comando `npm start`. Você pode acessar a aplicação no navegador, no endereço `http://localhost:3000`.
+
+Algumas observações:
+
+* Para uma API HTTP, você provavelmente não vai usar a parte de `views`. É possível gerar um projeto sem essa parte, com o comando `express --no-view`.
+
+* Repare que o diretório `public` é servido como um diretório de arquivos estáticos, isso resolve mais um dos pontos propostos no início deste tópico. A "mágica" ocorre no arquivo `app.js`, na linha que instala o *middleware* `express.static` na aplicação. Mais detalhes sobre middlewares serão fornecidos mais abaixo.
+
+* É possível observar aqui que o Express estimula a modularização dos endpoints em `Routers`. Uma boa analogia é considerar cada `Router` como uma mini aplicação express, *embutida* na aplicação raíz.
+
+A decisão entre usar o Express Generator ou não cabe a cada equipe, mas normalmente o ideal é começar do zero, adicionando apenas aquilo que o projeto de fato necessita. O valor desse tipo de ferramenta está na fase de aprendizado, para aqueles que querem ter algo funcionando para então ter uma ideia daquilo que é considerado boa prática.
+
 TODO:
 
-- Instalação e primeiro projeto
-- Express generator
 - Middlewares
 - CRUD de tarefas refeito
     - Arquivos estáticos (front html, JS e CSS simples)
