@@ -665,9 +665,209 @@ Note que o middleware `jwt` teve que ser alterado ligeiramente para ignorar requ
 
 Para testar, faça uma requisição POST para o caminho `/login`, passando como corpo um objeto com os atributos `user` e `pass`. Depois, com o JWT recebido na resposta, valide-o no site `https://jwt.io/` e use-o para autenticar chamadas nos endpoints de tarefas. Repare que se você usar uma data já passada no campo `exp` do token, o middleware vai rejeitar a autenticação.
 
-TODO:
+## Trabalhando com uploads
 
-- Trabalhando com anexos (upload)
-    - Tratar imagens de forma especial (crop/resize?)
-        https://stackoverflow.com/questions/13938686/can-i-load-a-local-file-into-an-html-canvas-element
-        https://github.com/fengyuanchen/cropperjs/blob/master/README.md#features
+Não é raro uma API precisar trabalhar com upload de documentos e imagens. Neste tópico será apresentada uma abordagem de implementação, juntamente com um front-end estático. De forma geral, essa aplicação irá:
+
+1. Mostrar um campo para seleção de imagem.
+2. Ao selecionar uma imagem, ela será apresentada para que o usuário selecione uma parte dela (crop) usando uma biblioteca JavaScript.
+4. Ao confirmar, a imagem será enviada para o servidor.
+
+Para começar, crie uma nova aplicação e adicione o middleware `express.static`:
+
+```js
+const express = require('express');
+const app = express();
+
+app.use(express.static('public'));
+app.use(express.json());
+
+app.listen(3000);
+```
+
+Crie agora um arquivo `public/index.html` com o seguinte conteúdo:
+
+```html
+<!DOCTYPE html>
+<html>
+    <body>
+        <p>
+            Selecione a imagem desejada:
+            <input type="file">
+        </p>
+    </body>
+</html>
+```
+
+Antes de enviar a imagem para o back-end, permita que o usuário selecione uma parte dela, uma operação de *cropping*. Como isso não é nativo do navegador, use uma biblioteca JavaScript, como por exemplo a `cropperjs` [1]. Comece adicionando a biblioteca no `index.html`:
+
+```html
+<!DOCTYPE html>
+<html>
+    <head>
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.1/cropper.css" />
+    </head>
+    <body>
+        <p>
+            Selecione a imagem desejada:
+            <input type="file" onchange="onFileChange()">
+        </p>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.1/cropper.js"></script>
+    </body>
+</html>
+```
+
+Note que essas dependências estão sendo adicionadas via CDN e não via npm, pois neste caso não estamos usando o `npm` no parte front-end do projeto. Se fosse um projeto Angular, por exemplo, a dependência poderia ser adicionada via `npm i cropperjs`.
+
+O próximo passo é capturar o evento de seleção de imagem, mostrá-la em uma tag `img` e inicializar o CropperJS nela:
+
+```html
+<!DOCTYPE html>
+<html>
+    <head>
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.1/cropper.css" />
+    </head>
+    <body>
+        <p id="form">
+            Selecione a imagem desejada:
+            <input type="file" onchange="onFileChange(event)">
+        </p>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.1/cropper.js"></script>
+        <script>
+
+            function onFileChange(event) {
+                const file = event.target.files[0];
+
+                const reader = new FileReader();
+                reader.onload = () => {
+                    const el = document.getElementById('form');
+
+                    const img = document.createElement('img');
+                    img.style.width = '250px';
+                    img.src = reader.result;
+
+                    el.innerHTML = '';
+                    el.appendChild(img);
+
+                    const cropper = new Cropper(img, {});
+
+                    const button = document.createElement('button');
+                    button.onclick = () => {
+                        console.log(cropper.getData());
+                    };
+                    button.innerText = 'Confirmar';
+                    el.append(button);
+
+                };
+                reader.readAsDataURL(file);
+
+            }
+
+        </script>
+    </body>
+</html>
+```
+
+Note que no evento do clique do botão é possível obter as coordenadas e o tamanho do quadro de crop selecionado pelo usuário.
+
+O próximo passo é criar um endpoint no back-end capaz de receber o arquivo, os dados de crop e armazenar a imagem final. O Express não dá suporte para uploads de modo nativo, mas existe um ótimo middleware que fornece essa funcionalidade, chamado `express-fileupload`. Instale-o usando `npm`:
+
+```
+npm i express-fileupload
+```
+
+Configure-o no arquivo `index.js`:
+
+```js
+const express = require('express');
+const fileUpload = require('express-fileupload');
+const app = express();
+
+app.use(express.static('public'));
+app.use(express.json());
+
+app.use(fileUpload({
+    limits: {
+        fileSize: 50 * 1024 * 1024 // 50mb
+    }
+}));
+
+app.post('/upload', (req, res) => {
+    const imagem = req.files.imagem;
+    const { cropx, cropy, cropwidth, cropheight } = req.body;
+    console.log(imagem);
+    console.log(cropx, cropy, cropheight, cropwidth);
+    res.send();
+});
+
+app.listen(3000);
+```
+
+Note que foi criado também um endpoint respondendo requisições POST no caminho `/upload`, para permitir testes. Altere agora o arquivo `index.html` para chamar esse endpoint:
+
+```js
+button.onclick = () => {
+
+    const data = new FormData();
+    data.append('imagem', file);
+
+    const crop = cropper.getData();
+    data.append('cropx', crop.x);
+    data.append('cropy', crop.y);
+    data.append('cropwidth', crop.width);
+    data.append('cropheight', crop.height);
+
+    fetch('/upload', {
+        method: 'POST',
+        body: data
+    }).then(resp => {
+        if (resp.status == 200) {
+            el.innerText = 'Sucesso!';
+        } else {
+            el.innerText = 'Erro!';
+        }
+    }).catch(err => {
+        console.error(err);
+        el.innerText = 'Erro!';
+    });
+
+};
+```
+
+A parte importante aqui é a preparação do objeto `data` com o `file` (obtido à partir do elemento `input`) e os dados de crop escolhidos pelo usuário.
+
+Manipulação de imagens também não está disponível nativamente, e uma ótima opção é a biblioteca `sharp` [2]. Instale-a usando npm:
+
+```
+npm i sharp
+```
+
+Ajuste agora o código do endpoint para efetuar a operação de crop e armazenar a imagem resultante no sistema de arquivos:
+
+```js
+app.post('/upload', (req, res) => {
+    const imagem = req.files.imagem;
+    const { cropx, cropy, cropwidth, cropheight } = req.body;
+
+    sharp(imagem.data)
+        .extract({
+            top: parseInt(cropy),
+            left: parseInt(cropx),
+            height: parseInt(cropheight),
+            width: parseInt(cropwidth)
+        })
+        .toFile('resultado.png')
+        .then(() => res.send())
+        .catch(err => {
+            console.error(err);
+            res.status(500).send();
+        });
+
+});
+```
+
+Pronto, com isso você concluiu o endpoint e o front-end capazes de armazenar uma parte de uma imagem, conforme orientações do próprio usuário.
+
+[1] https://github.com/fengyuanchen/cropperjs/blob/master/README.md#features
+
+[2] https://github.com/lovell/sharp
