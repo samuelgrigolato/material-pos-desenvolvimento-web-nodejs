@@ -645,7 +645,7 @@ app.post('/login', (req, res) => {
     const { user, pass } = req.body;
     if (!user || !pass) {
         res.status(400).send('Informe o usuário e a senha.');
-    } else if (user !== 'samuel' && pass !== '123') {
+    } else if (user !== 'samuel' || pass !== '123') {
         res.status(400).send('Credenciais inválidas.');
     } else {
         const token = jsonwebtoken.sign({
