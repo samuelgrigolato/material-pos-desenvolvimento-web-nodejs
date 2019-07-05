@@ -25,6 +25,7 @@ Carga horária: 40 horas.
 * [05 - Cache](05_Cache.md)
 * [Apêndice 1 - URL ao invés de Querystring](AP01_URL.md)
 * [Apêndice 2 - Executando express em modo cluster](AP02_Express_modo_cluster.md)
+* [Apêndice 3 - Nodemon](AP03_Nodemon.md)
 
 ## Gerando PDF
 
