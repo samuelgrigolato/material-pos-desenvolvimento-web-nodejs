@@ -67,4 +67,29 @@ router.get('/:id/etiquetas', async (req, res) => {
     }
 });
 
+router.get('/:id/checklists', async (req, res) => {
+    const usuario = req.user.sub;
+    const idTarefa = req.params.id;
+    try {
+        const checklists = await tarefasService.buscarChecklists(idTarefa, usuario);
+        res.send(checklists);
+    } catch (err) {
+        console.error(err);
+        res.status(500).send();
+    }
+});
+
+router.put('/:id/checklists', async (req, res) => {
+    const usuario = req.user.sub;
+    const idTarefa = req.params.id;
+    try {
+        const checklists = req.body;
+        await tarefasService.alterarChecklists(idTarefa, checklists, usuario);
+        res.send();
+    } catch (err) {
+        console.error(err);
+        res.status(500).send();
+    }
+});
+
 module.exports = router;

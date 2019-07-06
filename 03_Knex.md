@@ -657,21 +657,476 @@ router.get('/:id/etiquetas', async (req, res) => {
 });
 ```
 
+## Evolução do modelo
+
+Suponha que sua aplicação está em produção, sendo utilizada por vários usuários. Em determinado momento você decide evoluí-la, adicionando uma funcionalidade de checklists dentro de cada tarefa. Isso vai significar, em algum momento, a adição de uma nova tabela no banco de dados. Como gerenciar esse tipo de evolução? "Lembrar" de executar scripts SQL é suscetível a erros entre ambientes, e a última coisa que você deseja é diferenças entre os ambientes de desenvolvimento/testes e produção.
+
+Para resolver este ponto existe o conceito de "migrações de modelo de dados". Basicamente cada "migração" é um script (que pode ser SQL, ou código escrito em alguma biblioteca de interface com o banco como o próprio Knex) que atualiza o banco de dados para que ele fique compatível com a versão mais recente do código fonte. Essa migração pode ser disparada via CLI ou por dentro do código da própria aplicação. O importante é que ela faça parte do processo de integração/entrega contínua sem exigir nenhum tipo de intervenção humana.
+
+Nesta seção abordaremos a solução de migração oferecida pela ferramenta `db-migrate`. Note que o próprio Knex possui uma solução nativa de mesma categoria (as duas são muito similares, a opção por mostrar o `db-migrate` foi tomada para apresentar uma ferramenta ligeiramente mais genérica que a embutida no Knex).
+
+Comece removendo toda a estrutura de tabelas e sequências existente no banco de dados (visto que agora elas serão criadas através de migrações):
+
+```sql
+drop table tarefa_etiqueta;
+drop table etiquetas;
+drop table tarefas;
+drop table usuarios;
+drop sequence usuarios_id_seq;
+drop sequence tarefas_id_seq;
+```
+
+Instale agora o CLI `db-migrate` de modo global, juntamente com o driver para Postgres:
+
+```
+npm i -g db-migrate db-migrate-pg
+```
+
+Crie um arquivo chamado `database.json`, usado pelo `db-migrate` para obter dados de conexão com o banco de dados:
+
+```json
+{
+  "dev": "postgres://postgres:postgres@localhost:5432/tarefas1"
+}
+```
+
+Crie o primeiro script de migração com o seguinte comando:
+
+```
+db-migrate create usuarios
+```
+
+Ajuste o arquivo criado na pasta `migrations` do projeto com esse conteúdo nos métodos `up` e `down`:
+
+```js
+exports.up = function(db) {
+  return db.createTable('usuarios', {
+    id: { type: 'int', primaryKey: true },
+    login: { type: 'string', length: 100, notNull: true, unique: true },
+    senha: { type: 'blob', notNull: true }
+  });
+};
+
+exports.down = function(db) {
+  return db.dropTable('usuarios');
+};
+```
+
+Para executar a migração, execute o comando `db-migrate up`. Para revertê-la, use o comando `db-migrate down`.
+
+Ainda relacionado aos usuários existe a sequência para o ID. Infelizmente o `db-migrate` não oferece suporte para essa estrutura (nem todos os SGBDs possuem suporte para sequências), e nesses casos a saída é usar o `runSql`:
+
+```js
+exports.up = function(db) {
+  return db
+    .createTable('usuarios', {
+      id: { type: 'int', primaryKey: true },
+      login: { type: 'string', length: 100, notNull: true, unique: true },
+      senha: { type: 'blob', notNull: true }
+    })
+    .then(() => db.runSql('create sequence usuarios_id_seq;'));
+};
+
+exports.down = function(db) {
+  return db
+    .runSql('drop sequence usuarios_id_seq;')
+    .then(() => db.dropTable('usuarios'));
+};
+```
+
+Uma outra opção, mais flexível, é usar scripts SQL ao invés de código JavaScript para elaborar as migrações. Isso é possível passando o switch `--sql-file` para o comando `db-migrate create`:
+
+```
+db-migrate create tarefas --sql-file
+```
+
+Note que foi criado uma migração `up` e `down` em uma pasta chamada `sqls`. Implemente-as, respectivamente, da seguinte maneira:
+
+```sql
+create sequence tarefas_id_seq;
+
+create table tarefas (
+  id int not null,
+  usuario_id int not null,
+  descricao varchar(100) not null,
+  previsao timestamp not null,
+  conclusao timestamp,
+
+  constraint pk_tarefas primary key (id),
+  constraint fk_tarefas_usuario foreign key (usuario_id) references usuarios (id)
+);
+
+create table etiquetas (
+    id int not null,
+    descricao varchar(100) not null,
+
+    constraint pk_etiquetas primary key (id),
+    constraint un_etiquetas_descricao unique (descricao)
+);
+insert into etiquetas (id, descricao) values (1, 'Casa'), (2, 'Trabalho');
+
+create table tarefa_etiqueta (
+    tarefa_id int not null,
+    etiqueta_id int not null,
+
+    constraint pk_tarefa_etiqueta primary key (tarefa_id, etiqueta_id),
+    constraint fk_tarefa_etiqueta_tarefa
+      foreign key (tarefa_id)
+      references tarefas (id),
+    constraint fk_tarefa_etiqueta_etiqueta
+      foreign key (etiqueta_id)
+      references etiquetas (id)
+);
+```
+
+```sql
+drop table tarefa_etiqueta;
+drop table etiquetas;
+drop table tarefas;
+drop sequence tarefas_id_seq;
+```
+
+As duas maneiras de elaborar os scripts de migração são úteis, cabendo ao projeto definir um padrão, e usando a alternativa quando ela for mais apropriada. Uma consideração importante é que alguns projetos decidem *não* oferecer suporte para rollback (o método `down` das migrações). Garantir a qualidade desses módulos é custoso e eles praticamente nunca são usados, portanto o argumento principal é não implementá-los e atuar nos rollbacks manualmente quando algum imprevisto ocorrer nos ambientes produtivos.
+
+## Implementando suporte para checklists
+
+Uma vez com a estrutura de migrações configurada e funcional, crie uma nova migração para adicionar a tabela de checklists:
+
+```
+db-migrate create checklists --sql-file
+```
+
+```sql
+create table checklists (
+    id uuid not null,
+    tarefa_id int not null,
+    descricao varchar(100) not null,
+
+    constraint pk_checklists primary key (id),
+    constraint fk_checklists_tarefa foreign key (tarefa_id) references tarefas (id)
+);
+
+create table items_checklist (
+    id uuid not null,
+    checklist_id uuid not null,
+    descricao varchar(100) not null,
+    completado boolean default false,
+
+    constraint pk_items_checklist primary key (id),
+    constraint fk_items_checklist_checklist
+      foreign key (checklist_id)
+      references checklists (id)
+);
+```
+
+```sql
+drop table items_checklist;
+drop table checklists;
+```
+
+Note que dessa vez foram utilizadas colunas do tipo `uuid` ao invés de inteiros com auto-incremento. Essa é uma alternativa interessante para identificação única global de registros, amigável com arquiteturas compostas por várias fontes de dados distintas (o UUID pode ser gerado em qualquer lugar e distribuído para todas as fontes de dados envolvidas).
+
+A próxima decisão a ser tomada é como desenhar os endpoints que manipulam os checklists. Existem basicamente dois extremos:
+
+1) Implementar toda a gestão de checklists nos endpoints de cadastro e alteração de tarefa;
+2) Implementar endpoints específicos para criar/alterar/remover um checklist e criar/alterar/remover itens de checklist.
+
+A usabilidade desejada para a aplicação irá ditar o melhor caminho a ser seguido. Neste material implementaremos a primeira, e depois discutiremos como seria a implementação da segunda.
+
+Primeiramente ajuste o método `cadastrar` no módulo `tarefas-service` para suportar a criação de checklists:
+
+```js
+module.exports.cadastrar = async (tarefa, usuario) => {
+    return await knex.transaction(async trx => {
+        const id = await inserirTarefa(trx, tarefa, usuario);
+        await inserirEtiquetas(trx, id, tarefa);
+        await inserirChecklists(trx, id, tarefa);
+        return id;
+    });
+};
+
+
+function inserirTarefa(trx, tarefa, usuario) {
+    return trx('tarefas')
+        .insert({
+            id: knex.raw('nextval(\'tarefas_id_seq\')'),
+            descricao: tarefa.descricao,
+            previsao: tarefa.previsao,
+            usuario_id: knex('usuarios').select('id').where('login', usuario)
+        })
+        .returning('id')
+        .then(x => x[0]); // .first() não pode ser usado em inserts
+}
+
+
+function inserirEtiquetas(trx, idTarefa, tarefa) {
+    if (tarefa.checklists) {
+        return Promise.all(tarefa.checklists.map(async checklist => {
+            const idChecklist = uuidv4();
+            await trx('checklists').insert({
+                id: idChecklist,
+                tarefa_id: idTarefa,
+                descricao: checklist.descricao
+            });
+            await inserirItemsChecklist(trx, idChecklist, checklist);
+        }));
+    } else {
+        return Promise.resolve();
+    }
+}
+
+
+function inserirChecklists(trx, idTarefa, tarefa) {
+    if (tarefa.etiquetas) {
+        return trx.batchInsert('tarefa_etiqueta', tarefa.etiquetas.map(x => ({
+            tarefa_id: idTarefa,
+            etiqueta_id: x
+        })));
+    } else {
+        return Promise.resolve();
+    }
+}
+
+
+function inserirItemsChecklist(trx, idChecklist, checklist) {
+    if (checklist.items) {
+        return trx.batchInsert('items_checklist', checklist.items.map(x => ({
+            id: uuidv4(),
+            checklist_id: idChecklist,
+            descricao: x.descricao,
+            completado: x.completado
+        })));
+    } else {
+        return Promise.resolve();
+    }
+}
+```
+
+Note que o pacote `uuid/v4` não é nativo do Node. Para instalá-lo use o seguinte comando:
+
+```
+npm install uuid
+```
+
+Repare também que o método todo foi refatorado, para fins de melhorar a legibilidade.
+
+Crie agora um método no service para retornar a lista de checklists, juntamente com seus itens, dado um identificador de tarefa:
+
+```js
+module.exports.buscarChecklists = async (idTarefa, usuario) => {
+    return knex('checklists')
+        .leftJoin('items_checklist', 'items_checklist.checklist_id', 'checklists.id')
+        .join('tarefas', 'tarefas.id', 'checklists.tarefa_id')
+        .join('usuarios', 'usuarios.id', 'tarefas.usuario_id')
+        .select(
+            knex.ref('checklists.id').as('checkId'),
+            knex.ref('checklists.descricao').as('checkDesc'),
+            knex.ref('items_checklist.id').as('itemId'),
+            knex.ref('items_checklist.descricao').as('itemDesc'),
+            knex.ref('items_checklist.completado').as('itemCompl')
+        )
+        .where({
+            'checklists.tarefa_id': idTarefa,
+            'usuarios.login': usuario
+        })
+        .then(async res => {
+            const checklists = {};
+            res.forEach(linha => {
+                if (!checklists[linha.checkId]) {
+                    checklists[linha.checkId] = {
+                        id: linha.checkId,
+                        descricao: linha.checkDesc,
+                        items: []
+                    };
+                }
+                if (linha.itemId) {
+                    checklists[linha.checkId].items.push({
+                        id: linha.itemId,
+                        descricao: linha.itemDesc,
+                        completado: linha.itemCompl
+                    });
+                }
+            });
+            return Object.values(checklists);
+        });
+};
+```
+
+E exponha esse endpoint no router de tarefas:
+
+```js
+router.get('/:id/checklists', async (req, res) => {
+    const usuario = req.user.sub;
+    const idTarefa = req.params.id;
+    try {
+        const checklists = await tarefasService.buscarChecklists(idTarefa, usuario);
+        res.send(checklists);
+    } catch (err) {
+        console.error(err);
+        res.status(500).send();
+    }
+});
+```
+
+Implemente agora um método para *alterar* os checklists de uma tarefa. Note que o processo é bem complexo, pois envolve uma *mesclagem* (merge) entre duas listas. Para simplificar, o seguinte método utilitário foi adicionado em um módulo `colecoes` na raíz do projeto:
+
+```js
+/**
+ * Compara os itens entre origem destino, executando as seguintes ações:
+ * 
+ * - "criar" é chamado sempre que um item é encontrado em origem e não em destino.
+ * - "atualizar" é chamado sempre que um item é encontrado dos dois lados.
+ * - "remover" é chamado sempre que um item está no destino mas não está na origem.
+ * 
+ * A igualdade entre itens é decidida através de uma chamada ao método "iguais".
+ * 
+ * Os vetores originais não são modificados.
+ */
+module.exports.mesclar = async (origem, destino, saoIguais, criar, atualizar, remover) => {
+    const restantes = [].concat(destino);
+    for (const x of origem) {
+        let indiceDoExistente = -1;
+        for (let i = 0; i < restantes.length; i++) {
+            if (saoIguais(x, restantes[i])) {
+                indiceDoExistente = i;
+                break;
+            }
+        }
+        if (indiceDoExistente >= 0) {
+            await atualizar(x, restantes[indiceDoExistente]);
+            restantes.splice(indiceDoExistente, 1);
+        } else {
+            await criar(x);
+        }
+    }
+    for (const x of restantes) {
+        await remover(x);
+    }
+}
+```
+
+Agora, usando este utilitário, implemente o método no `tarefas-service`:
+
+```js
+module.exports.alterarChecklists = (idTarefa, checklists, usuario) => {
+    return knex.transaction(async trx => {
+        const origem = checklists;
+        const destino = await buscarChecklists(idTarefa, usuario);
+        await mesclar(origem, destino,
+            (x, y) => x.id === y.id,
+
+            // criar
+            x => inserirChecklist(trx, idTarefa, x),
+
+            // atualizar
+            (x, y) => atualizarChecklist(trx, x, y),
+            
+            // remover
+            x => removerChecklist(trx, x));
+    });
+};
+
+
+function inserirChecklist(trx, idTarefa, checklist) {
+    const idChecklist = checklist.id || uuidv4();
+    return trx('checklists')
+        .insert({
+            id: idChecklist,
+            tarefa_id: idTarefa,
+            descricao: checklist.descricao
+        })
+        .then(() => inserirItemsChecklist(trx, idChecklist, checklist));
+}
+
+
+function atualizarChecklist(trx, novo, existente) {
+    return trx('checklists')
+        .where({ id: existente.id })
+        .update({ descricao: novo.descricao })
+        .then(() => atualizarItemsChecklist(trx, novo, existente));
+}
+
+
+function atualizarItemsChecklist(trx, novo, existente) {
+    const origem = novo.items || [];
+    const destino = existente.items;
+    return mesclar(origem, destino,
+        (x, y) => x.id === y.id,
+        
+        // criar
+        x => trx('items_checklist').insert({
+            id: x.id || uuidv4(),
+            checklist_id: existente.id,
+            descricao: x.descricao,
+            completado: x.completado
+        }),
+        
+        // atualizar
+        (x, y) => trx('items_checklist').where({ id: y.id }).update({
+            descricao: x.descricao,
+            completado: x.completado
+        }),
+        
+        // remover
+        x => trx('items_checklist').where({ id: x.id }).del());
+}
+
+
+function removerChecklist(trx, checklist) {
+    return trx('items_checklist')
+        .where({ checklist_id: checklist.id })
+        .del()
+        .then(() => trx('checklists')
+            .where({ id: checklist.id })
+            .del());
+}
+```
+
+Note que foi necessário extrair o `buscarChecklists` para uma constante.
+
+E exponha-o no `tarefas-router`:
+
+```js
+router.put('/:id/checklists', async (req, res) => {
+    const usuario = req.user.sub;
+    const idTarefa = req.params.id;
+    try {
+        const checklists = req.body;
+        await tarefasService.alterarChecklists(idTarefa, checklists, usuario);
+        res.send();
+    } catch (err) {
+        console.error(err);
+        res.status(500).send();
+    }
+});
+```
+
+Cuidado deve ser tomado, pois a implementação atual *é insegura*, pois permite que um usuário altere checklists de uma tarefa que não é dele. Corrija isso no `tarefas-service`:
+
+```js
+module.exports.alterarChecklists = (idTarefa, checklists, usuario) => {
+    return knex.transaction(async trx => {
+        await validarPermissaoDeAcesso(idTarefa, usuario);
+        // [...]
+    });
+};
+
+async function validarPermissaoDeAcesso(idTarefa, usuario) {
+    const res = await knex('tarefas')
+        .join('usuarios', 'usuarios.id', 'tarefas.usuario_id')
+        .where({
+            'usuarios.login': usuario,
+            'tarefas.id': idTarefa
+        })
+        .count()
+        .first();
+    if (res.count <= 0) {
+        throw Error('Acesso negado!');
+    }
+}
+```
+
 TODO:
 
-- Uso de migrações nativas e db-migrate (adição de suporte para checklists, uso de GUID)
-    Adicionar tudo em um único endpoint (cadastro/alteração de tarefa) vs endpoints específicos
 - Upload (banco/fs)
-- Adição de checklists em dois modelos de API e discussão de prós e contras
-
-    POST /tarefas e GET/PUT /tarefas/{id}
-
-        Discutir sobre controle transacional/unit of work
-
-    POST /tarefas/{id}/checklists
-    GET /tarefas/{id}
-    DELETE /tarefas/{id}/checklists/{id}
-    POST /tarefas/{id}/checklists/{id}/tasks
-    PUT/DELETE /tarefas/{id}/checklists/{id}/tasks/{id}
-
 - Pool de conexões com Knex e as consequências disso com a questão da clusterização
