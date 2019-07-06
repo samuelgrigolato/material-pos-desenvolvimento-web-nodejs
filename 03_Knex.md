@@ -445,17 +445,95 @@ module.exports.buscarPorId = id => {
 
 ### Query Builder
 
+A terceira opção que será apresentada para comunicação com o banco de dados é um intermediário entre as outras duas. Ao invés de escrever os comandos SQL manualmente, como na primeira opção, ou configurar uma camada de abstração orientada a objetos, como na segunda, existem bibliotecas que ajudam a montar dinamicamente os comandos SQL sem remover a essência relacional do processo. Esse é o fundamento por tras dos Query Builders, como o Knex.
+
+Para demonstrar o uso dessa biblioteca, serão implementados endpoints para cadastro de tarefa (com suporte para definição de conjunto etiquetas) e para listar as etiquetas de uma determinada tarefa.
+
+O primeiro passo é criar as tabelas que darão suporte para as etiquetas:
+
+```sql
+create table etiquetas (
+    id int not null,
+    descricao varchar(100) not null,
+
+    constraint pk_etiquetas primary key (id),
+    constraint un_etiquetas_descricao unique (descricao)
+);
+insert into etiquetas (id, descricao) values (1, 'Casa'), (2, 'Trabalho');
+
+create table tarefa_etiqueta (
+    tarefa_id int not null,
+    etiqueta_id int not null,
+
+    constraint pk_tarefa_etiqueta primary key (tarefa_id, etiqueta_id),
+    constraint fk_tarefa_etiqueta_tarefa
+      foreign key (tarefa_id)
+      references tarefas (id),
+    constraint fk_tarefa_etiqueta_etiqueta
+      foreign key (etiqueta_id)
+      references etiquetas (id)
+);
+```
+
+Instale o Knex no projeto e um driver Postgres (no caso já estará instalado, mas também é uma dependência do Knex e teria que ser instalado manualmente caso o projeto não estivesse pré-configurado com o Sequelize):
+
+```
+npm i knex pg
+```
+
+Agora crie um módulo chamado `querybuilder` na raíz, com o seguinte código:
+
+```js
+module.exports.knex = require('knex')({
+    client: 'pg',
+    connection: 'postgres://postgres:postgres@localhost:5432/tarefas1',
+    debug: true
+});
+```
+
+Adicione agora um método no módulo `tarefas-service` capaz de cadastrar uma tarefa:
+
+```js
+const { knex } = require('../querybuilder');
+
+
+module.exports.cadastrar = async (tarefa, usuario) => {
+    return knex('tarefas')
+        .insert({
+            id: knex.raw('nextval(\'tarefas_id_seq\')'),
+            descricao: tarefa.descricao,
+            previsao: tarefa.previsao,
+            usuario_id: knex('usuarios').select('id').where('login', usuario)
+        })
+        .returning('id')
+        .then(x => x[0]); // .first() não pode ser usado em inserts
+};
+```
+
+E também um endpoint no `tarefas-router`:
+
+```js
+router.post('/', async (req, res) => {
+    const usuario = req.user.sub;
+    const tarefa = req.body;
+    try {
+        const id = await tarefasService.cadastrar(tarefa, usuario);
+        res.send({ id });
+    } catch (err) {
+        console.error(err);
+        res.status(500).send();
+    }
+});
+```
+
+Continuar adaptando o endpoint para tratar uma lista de etiquetas, e criar um endpoint para retornar as etiquetas de uma determinada tarefa (de modo seguro).
+discutir sobre controle transacional/unit of work
+
 TODO:
 
-- ORM vs. SQL QueryBuilder
-    ORM: descrever, configurar o sequelize com modelos de tarefas e usuários e ajustar a API para autenticar, listar e trazer detalhes junto com o nome do usuário além dos dados da tarefa em si
-    SQL QueryBuilder: instalação do Knex e refatoração dos endpoints primeiro select/insert
-- Uso de migrações nativas e db-migrate
-- Refatoração completa do tarefas-modelo
-
-    Auto incremento ou GUID? GUID muito grande (char(32) vs uuid)?
-    No upload mostrar tanto no banco quanto no sistema de arquivos
-
+- Uso de migrações nativas e db-migrate (adição de suporte para checklists, uso de GUID)
+    Adicionar tudo em um único endpoint (cadastro/alteração de tarefa) vs endpoints específicos
+- Upload (banco/fs)
 - Adição de checklists em dois modelos de API e discussão de prós e contras
 
     POST /tarefas e GET/PUT /tarefas/{id}
