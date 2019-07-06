@@ -30,7 +30,7 @@ create table usuarios (
 Crie agora a tabela de tarefas:
 
 ```sql
-create sequence tabelas_id_seq;
+create sequence tarefas_id_seq;
 
 create table tarefas (
   id int not null,
@@ -214,12 +214,16 @@ const router = express.Router();
 router.post('/', (req, res) => {
     const { usuario, senha } = req.body;
     loginService.credenciaisValidas(usuario, senha)
-        .then(() => {
-            const token = jsonwebtoken.sign({
-                sub: usuario,
-                exp: moment().add(30, 'minutes').unix()
-            }, SEGREDO_JWT);
-            res.send({ token });
+        .then(validas => {
+            if (validas) {
+                const token = jsonwebtoken.sign({
+                    sub: usuario,
+                    exp: moment().add(30, 'minutes').unix()
+                }, SEGREDO_JWT);
+                res.send({ token });
+            } else {
+                res.status(401).send();
+            }
         })
         .catch(err => {
             console.error(err);
@@ -249,28 +253,40 @@ const router = express.Router();
 
 router.get('/', async (req, res) => {
     const usuario = req.user.sub;
-    const tarefas = await tarefasService.listar(usuario);
-    res.send(tarefas.map(tarefa => ({
-        id: tarefa.id,
-        descricao: tarefa.descricao,
-        previsao: tarefa.previsao,
-        conclusao: tarefa.conclusao
-    })));
+    try {
+        const tarefas = await tarefasService.listar(usuario);
+        res.send(tarefas.map(tarefa => ({
+            id: tarefa.id,
+            descricao: tarefa.descricao,
+            previsao: tarefa.previsao,
+            conclusao: tarefa.conclusao
+        })));
+    } catch (err) {
+        console.error(err);
+        res.status(500).send();
+    }
 });
 
 router.get('/:id', async (req, res) => {
     const usuario = req.user.sub;
     const id = req.params.id;
-    const tarefa = await tarefasService.buscarPorId(id);
-    if (tarefa.usuario.login !== usuario) {
-        res.status(403).send();
-    } else {
-        res.send({
-            id: tarefa.id,
-            descricao: tarefa.descricao,
-            previsao: tarefa.previsao,
-            conclusao: tarefa.conclusao
-        });
+    try {
+        const tarefa = await tarefasService.buscarPorId(id);
+        if (!tarefa) {
+            res.status(404).send();
+        } else if (tarefa.usuario.login !== usuario) {
+            res.status(403).send();
+        } else {
+            res.send({
+                id: tarefa.id,
+                descricao: tarefa.descricao,
+                previsao: tarefa.previsao,
+                conclusao: tarefa.conclusao
+            });
+        }
+    } catch (err) {
+        console.error(err);
+        res.status(500).send();
     }
 });
 
@@ -310,6 +326,124 @@ module.exports.buscarPorId = id => {
 ```
 
 Depois de garantir que essa base está funcionando corretamente, o próximo passo é configurar o `Sequelize` e ajustar os módulos de serviço para buscar os dados no banco.
+
+Primeiro instale a biblioteca e o driver PostgreSQL usado por ela:
+
+```
+npm i sequelize pg pg-hstore
+```
+
+Agora crie um módulo chamado `orm` na raíz do projeto, com o seguinte conteúdo:
+
+```js
+const Sequelize = require('sequelize');
+
+
+module.exports.sequelize = new Sequelize('postgres://postgres:postgres@localhost:5432/tarefas1', {
+    define: {
+        timestamps: false,
+        underscored: true
+    }
+});
+```
+
+Agora crie o módulo `usuarios/usuarios-modelo`:
+
+```js
+const Sequelize = require('sequelize');
+const { sequelize } = require('../orm');
+
+
+module.exports.Usuario = sequelize.define('usuario', {
+    login: {
+        type: Sequelize.STRING,
+        allowNull: false
+    },
+    senha: {
+        type: Sequelize.BLOB,
+        allowNull: false
+    }
+});
+```
+
+E o módulo `tarefas/tarefas-modelo`:
+
+```js
+const Sequelize = require('sequelize');
+const { sequelize } = require('../orm');
+const { Usuario } = require('../usuarios/usuarios-modelo');
+
+
+const Tarefa = sequelize.define('tarefa', {
+    descricao: {
+        type: Sequelize.STRING,
+        allowNull: false
+    },
+    previsao: {
+        type: Sequelize.DATE,
+        allowNull: false
+    },
+    conclusao: {
+        type: Sequelize.DATE
+    }
+});
+Tarefa.belongsTo(Usuario);
+
+module.exports.Tarefa = Tarefa;
+```
+
+Por fim adapte os serviços de login e tarefas:
+
+```js
+const crypto = require('crypto');
+const { Usuario } = require('../usuarios/usuarios-modelo');
+
+
+const criptografar = senha => {
+    const salt = 'segredo';
+    let senhaCriptografada = `${salt}${senha}`;
+    for (let i = 0; i < 10; i++) {
+        senhaCriptografada = crypto.createHash('sha256')
+            .update(senhaCriptografada)
+            .digest();
+    }
+    return senhaCriptografada;
+};
+
+
+module.exports.credenciaisValidas = async (login, senha) => {
+    const usuario = await Usuario.findOne({
+        where: { login, senha: criptografar(senha) }
+    });
+    return !!usuario;
+};
+```
+
+```js
+const { Tarefa } = require('./tarefas-modelo');
+const { Usuario } = require('../usuarios/usuarios-modelo');
+
+
+module.exports.listar = usuario => {
+    return Tarefa.findAll({
+        include: [{
+            model: Usuario,
+            where: { login: usuario }
+        }]
+    });
+};
+
+
+module.exports.buscarPorId = id => {
+    return Tarefa.findByPk(id, {
+        include: [{
+            model: Usuario
+        }]
+    });
+};
+```
+
+### Query Builder
 
 TODO:
 

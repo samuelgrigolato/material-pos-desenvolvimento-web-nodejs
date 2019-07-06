@@ -1,27 +1,21 @@
-const moment = require('moment');
+const { Tarefa } = require('./tarefas-modelo');
+const { Usuario } = require('../usuarios/usuarios-modelo');
 
 
 module.exports.listar = usuario => {
-    return Promise.resolve([{
-        id: 1,
-        descricao: 'Tarefa 1',
-        previsao: moment(),
-        conclusao: null,
-        usuario: {
-            login: 'samuel'
-        }
-    }]);
+    return Tarefa.findAll({
+        include: [{
+            model: Usuario,
+            where: { login: usuario }
+        }]
+    });
 };
 
 
 module.exports.buscarPorId = id => {
-    return Promise.resolve({
-        id,
-        descricao: 'Tarefa 1',
-        previsao: moment(),
-        conclusao: null,
-        usuario: {
-            login: 'samuel'
-        }
+    return Tarefa.findByPk(id, {
+        include: [{
+            model: Usuario
+        }]
     });
 };

@@ -10,12 +10,16 @@ const router = express.Router();
 router.post('/', (req, res) => {
     const { usuario, senha } = req.body;
     loginService.credenciaisValidas(usuario, senha)
-        .then(() => {
-            const token = jsonwebtoken.sign({
-                sub: usuario,
-                exp: moment().add(30, 'minutes').unix()
-            }, SEGREDO_JWT);
-            res.send({ token });
+        .then(validas => {
+            if (validas) {
+                const token = jsonwebtoken.sign({
+                    sub: usuario,
+                    exp: moment().add(30, 'minutes').unix()
+                }, SEGREDO_JWT);
+                res.send({ token });
+            } else {
+                res.status(401).send();
+            }
         })
         .catch(err => {
             console.error(err);
