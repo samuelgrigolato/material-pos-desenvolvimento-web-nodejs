@@ -159,6 +159,158 @@ Dica: use o comando SQL `select encode(senha, 'hex') from usuarios;` para obter 
 
 ### ORM
 
+Com a popularização da programação orientada a objetos, naturalmente surgiram ideias para facilitar o uso de bases de dados relacionais neste meio. Uma das vertentes mais agressivas propõe o maior nível de abstração possível, e é chamada de ORM (mapeamento objeto-relacional). A ideia do ORM é configurar previamente um conjunto de classes (ou equivalente) e atributos de modo a representarem o modelo de tabelas/colunas do banco de dados em um grafo de objetos. Com base nessa configuração, a ferramenta de ORM é capaz de fornecer APIs de consulta e manipulação dos dados de maneira simplificada.
+
+A primeira vista essa parece a melhor opção, mas como o mapeamento entre orientação a objetos e modelo de dados relacional é complexo e incompleto, o resultado quase sempre é o sacríficio de performance para o ganho de simplicidade e produtividade no desenvolvimento. Portanto o uso dessa técnica deve ser feito com cuidado, e ela nem de longe exime o desenvolvedor de possuir um conhecimento aprofundado em modelos relacionais.
+
+Para entender o funcionamento de um ORM, com a finalidade de comparar com o uso do Query Builder Knex, será mostrado agora como desenvolver uma API capaz de autenticar usuários, listar e trazer detalhes de tarefas usando o ORM `Sequelize`.
+
+Comece criando um novo projeto Express com autenticação e geração de token JWT:
+
+```
+npm init
+npm i express express-jwt jsonwebtoken moment
+```
+
+```js
+const express = require('express');
+const jwt = require('express-jwt');
+const { SEGREDO_JWT } = require('./seguranca');
+const loginRouter = require('./login/login-router');
+const tarefasRouter = require('./tarefas/tarefas-router');
+
+const app = express();
+
+app.use(express.json());
+
+app.use(jwt({
+    secret: SEGREDO_JWT
+}).unless({ path: '/login' }));
+
+app.use('/login', loginRouter);
+app.use('/tarefas', tarefasRouter);
+
+app.listen(3000);
+```
+
+Crie o módulo `seguranca`:
+
+```js
+module.exports.SEGREDO_JWT = 'ormsegredo';
+```
+
+Crie o roteador de login:
+
+```js
+const express = require('express');
+const jsonwebtoken = require('jsonwebtoken');
+const moment = require('moment');
+const loginService = require('./login-service');
+const { SEGREDO_JWT } = require('../seguranca');
+
+
+const router = express.Router();
+
+router.post('/', (req, res) => {
+    const { usuario, senha } = req.body;
+    loginService.credenciaisValidas(usuario, senha)
+        .then(() => {
+            const token = jsonwebtoken.sign({
+                sub: usuario,
+                exp: moment().add(30, 'minutes').unix()
+            }, SEGREDO_JWT);
+            res.send({ token });
+        })
+        .catch(err => {
+            console.error(err);
+            res.status(500).send();
+        });
+});
+
+module.exports = router;
+```
+
+Agora o esqueleto do serviço de login:
+
+```js
+module.exports.credenciaisValidas = (usuario, senha) => {
+    return Promise.resolve(true); // será substituído pela integração com ORM
+};
+```
+
+Crie também o router de tarefas:
+
+```js
+const express = require('express');
+const tarefasService = require('./tarefas-service');
+
+
+const router = express.Router();
+
+router.get('/', async (req, res) => {
+    const usuario = req.user.sub;
+    const tarefas = await tarefasService.listar(usuario);
+    res.send(tarefas.map(tarefa => ({
+        id: tarefa.id,
+        descricao: tarefa.descricao,
+        previsao: tarefa.previsao,
+        conclusao: tarefa.conclusao
+    })));
+});
+
+router.get('/:id', async (req, res) => {
+    const usuario = req.user.sub;
+    const id = req.params.id;
+    const tarefa = await tarefasService.buscarPorId(id);
+    if (tarefa.usuario.login !== usuario) {
+        res.status(403).send();
+    } else {
+        res.send({
+            id: tarefa.id,
+            descricao: tarefa.descricao,
+            previsao: tarefa.previsao,
+            conclusao: tarefa.conclusao
+        });
+    }
+});
+
+module.exports = router;
+```
+
+E o esqueleto do service de tarefas:
+
+```js
+const moment = require('moment');
+
+
+module.exports.listar = usuario => {
+    return Promise.resolve([{
+        id: 1,
+        descricao: 'Tarefa 1',
+        previsao: moment(),
+        conclusao: null,
+        usuario: {
+            login: 'samuel'
+        }
+    }]);
+};
+
+
+module.exports.buscarPorId = id => {
+    return Promise.resolve({
+        id,
+        descricao: 'Tarefa 1',
+        previsao: moment(),
+        conclusao: null,
+        usuario: {
+            login: 'samuel'
+        }
+    });
+};
+```
+
+Depois de garantir que essa base está funcionando corretamente, o próximo passo é configurar o `Sequelize` e ajustar os módulos de serviço para buscar os dados no banco.
+
 TODO:
 
 - ORM vs. SQL QueryBuilder
@@ -181,3 +333,5 @@ TODO:
     DELETE /tarefas/{id}/checklists/{id}
     POST /tarefas/{id}/checklists/{id}/tasks
     PUT/DELETE /tarefas/{id}/checklists/{id}/tasks/{id}
+
+- Pool de conexões com Knex e as consequências disso com a questão da clusterização
