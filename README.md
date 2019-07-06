@@ -40,3 +40,14 @@ Depois execute o seguinte comando:
 ```
 md2pdf <arquivo.md> --launch-options '{ "args": ["--no-sandbox"] }'
 ```
+
+## Iniciando um servidor PostgreSQL usando docker
+
+Para subir uma imagem docker rodando um servidor PostgreSQL, execute o seguinte comando:
+
+```
+docker run --name posdesenvweb-postgres \
+  -e POSTGRES_PASSWORD=postgres \
+  -e POSTGRES_USER=postgres \
+  -p 5432:5432 -d postgres
+```
