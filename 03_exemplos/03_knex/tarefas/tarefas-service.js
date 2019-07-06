@@ -25,7 +25,7 @@ module.exports.buscarPorId = id => {
 
 
 module.exports.cadastrar = async (tarefa, usuario) => {
-    return await knex.transaction(async trx => {
+    return knex.transaction(async trx => {
         const id = await inserirTarefa(trx, tarefa, usuario);
         await inserirEtiquetas(trx, id, tarefa);
         await inserirChecklists(trx, id, tarefa);
@@ -48,6 +48,18 @@ function inserirTarefa(trx, tarefa, usuario) {
 
 
 function inserirEtiquetas(trx, idTarefa, tarefa) {
+    if (tarefa.etiquetas) {
+        return trx.batchInsert('tarefa_etiqueta', tarefa.etiquetas.map(x => ({
+            tarefa_id: idTarefa,
+            etiqueta_id: x
+        })));
+    } else {
+        return Promise.resolve();
+    }
+}
+
+
+function inserirChecklists(trx, idTarefa, tarefa) {
     if (tarefa.checklists) {
         return Promise.all(tarefa.checklists.map(async checklist => {
             const idChecklist = uuidv4();
@@ -58,18 +70,6 @@ function inserirEtiquetas(trx, idTarefa, tarefa) {
             });
             await inserirItemsChecklist(trx, idChecklist, checklist);
         }));
-    } else {
-        return Promise.resolve();
-    }
-}
-
-
-function inserirChecklists(trx, idTarefa, tarefa) {
-    if (tarefa.etiquetas) {
-        return trx.batchInsert('tarefa_etiqueta', tarefa.etiquetas.map(x => ({
-            tarefa_id: idTarefa,
-            etiqueta_id: x
-        })));
     } else {
         return Promise.resolve();
     }
@@ -90,7 +90,7 @@ function inserirItemsChecklist(trx, idChecklist, checklist) {
 }
 
 
-module.exports.buscarEtiquetas = async (idTarefa, usuario) => {
+module.exports.buscarEtiquetas = (idTarefa, usuario) => {
     return knex('etiquetas')
         .join('tarefa_etiqueta', 'etiquetas.id', 'tarefa_etiqueta.etiqueta_id')
         .join('tarefas', 'tarefas.id', 'tarefa_etiqueta.tarefa_id')
@@ -103,7 +103,7 @@ module.exports.buscarEtiquetas = async (idTarefa, usuario) => {
 };
 
 
-const buscarChecklists = async (idTarefa, usuario) => {
+const buscarChecklists = (idTarefa, usuario) => {
     return knex('checklists')
         .leftJoin('items_checklist', 'items_checklist.checklist_id', 'checklists.id')
         .join('tarefas', 'tarefas.id', 'checklists.tarefa_id')

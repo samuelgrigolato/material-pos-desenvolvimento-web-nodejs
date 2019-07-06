@@ -4,7 +4,7 @@ Até agora não foi discutido nenhum mecanismo de persistência de dados para as
 
 Quando se analisa as possíveis escolhas para persistência de dados em um projeto, o modelo mais simples e difundido é o uso de uma base de dados relacional. O fato de possuir um esquema robusto, ser flexível, ter muito conhecimento difundido na Internet e escalar apropriadamente para a grande maioria dos cenários a qual é subjulgada faz desse tipo de base de dados a escolha padrão. É quando o cenário é específico demais, seja pelo volume de informações, modelo muito variado, características de acesso recursivas dentre outras peculiaridades que outros modelos como o baseado em documentos, chave-valor ou grafos surgem para atender a demanda.
 
-Uma vez decidido o uso de uma base relacional, o próximo passo é escolher o sistema gerenciador de base de dados (MySQL, PostgreSQL, SQL Server etc.). Os fatores que permeiam essa decisão estão fora do escopo dessa disciplina, e não influenciam significativamente no próximo passo. Para o decorrer da disciplina o SGBD PostgreSQL será utilizado, por conveniência.
+Uma vez decidido o uso de uma base relacional, o próximo passo é escolher o sistema gerenciador de base de dados (MySQL, PostgreSQL, SQL Server etc.). Os fatores que permeiam essa decisão estão fora do escopo dessa disciplina, e não influenciam significativamente no passo seguinte. Para o decorrer da disciplina o SGBD PostgreSQL será utilizado, por conveniência.
 
 ## Criação das tabelas no PostgreSQL
 
@@ -347,6 +347,8 @@ module.exports.sequelize = new Sequelize('postgres://postgres:postgres@localhost
 });
 ```
 
+Lembre-se de ajustar a string de conexão conforme o seu ambiente.
+
 Agora crie o módulo `usuarios/usuarios-modelo`:
 
 ```js
@@ -491,6 +493,8 @@ module.exports.knex = require('knex')({
 });
 ```
 
+Novamente, atente-se em ajustar a string de conexão conforme o seu ambiente.
+
 Adicione agora um método no módulo `tarefas-service` capaz de cadastrar uma tarefa:
 
 ```js
@@ -583,7 +587,7 @@ O knex oferece controle transacional através do método `knex.transaction`. Ess
 
 ```js
 module.exports.cadastrar = async (tarefa, usuario) => {
-    return await knex.transaction(async trx => {
+    return knex.transaction(async trx => {
         const id = await knex('tarefas')
             .transacting(trx)
             .insert({
@@ -628,7 +632,7 @@ O commit ocorre quando a Promise passada para a função `knex.transaction` reso
 Para concluir essa seção, crie um método que busca uma lista de etiquetas dado um identificador de tarefa e um usuário, no módulo `tarefas-service`:
 
 ```js
-module.exports.buscarEtiquetas = async (idTarefa, usuario) => {
+module.exports.buscarEtiquetas = (idTarefa, usuario) => {
     return knex('etiquetas')
         .join('tarefa_etiqueta', 'etiquetas.id', 'tarefa_etiqueta.etiqueta_id')
         .join('tarefas', 'tarefas.id', 'tarefa_etiqueta.tarefa_id')
@@ -860,6 +864,18 @@ function inserirTarefa(trx, tarefa, usuario) {
 
 
 function inserirEtiquetas(trx, idTarefa, tarefa) {
+    if (tarefa.etiquetas) {
+        return trx.batchInsert('tarefa_etiqueta', tarefa.etiquetas.map(x => ({
+            tarefa_id: idTarefa,
+            etiqueta_id: x
+        })));
+    } else {
+        return Promise.resolve();
+    }
+}
+
+
+function inserirChecklists(trx, idTarefa, tarefa) {
     if (tarefa.checklists) {
         return Promise.all(tarefa.checklists.map(async checklist => {
             const idChecklist = uuidv4();
@@ -870,18 +886,6 @@ function inserirEtiquetas(trx, idTarefa, tarefa) {
             });
             await inserirItemsChecklist(trx, idChecklist, checklist);
         }));
-    } else {
-        return Promise.resolve();
-    }
-}
-
-
-function inserirChecklists(trx, idTarefa, tarefa) {
-    if (tarefa.etiquetas) {
-        return trx.batchInsert('tarefa_etiqueta', tarefa.etiquetas.map(x => ({
-            tarefa_id: idTarefa,
-            etiqueta_id: x
-        })));
     } else {
         return Promise.resolve();
     }
@@ -913,7 +917,7 @@ Repare também que o método todo foi refatorado, para fins de melhorar a legibi
 Crie agora um método no service para retornar a lista de checklists, juntamente com seus itens, dado um identificador de tarefa:
 
 ```js
-module.exports.buscarChecklists = async (idTarefa, usuario) => {
+module.exports.buscarChecklists = (idTarefa, usuario) => {
     return knex('checklists')
         .leftJoin('items_checklist', 'items_checklist.checklist_id', 'checklists.id')
         .join('tarefas', 'tarefas.id', 'checklists.tarefa_id')
@@ -972,13 +976,13 @@ Implemente agora um método para *alterar* os checklists de uma tarefa. Note que
 
 ```js
 /**
- * Compara os itens entre origem destino, executando as seguintes ações:
+ * Compara os itens entre origem e destino, executando as seguintes ações:
  * 
  * - "criar" é chamado sempre que um item é encontrado em origem e não em destino.
  * - "atualizar" é chamado sempre que um item é encontrado dos dois lados.
  * - "remover" é chamado sempre que um item está no destino mas não está na origem.
  * 
- * A igualdade entre itens é decidida através de uma chamada ao método "iguais".
+ * A igualdade entre itens é decidida através de uma chamada ao método "saoIguais".
  * 
  * Os vetores originais não são modificados.
  */
@@ -1126,7 +1130,8 @@ async function validarPermissaoDeAcesso(idTarefa, usuario) {
 }
 ```
 
-TODO:
+## Uma nota sobre pooling de conexões
 
-- Upload (banco/fs)
-- Pool de conexões com Knex e as consequências disso com a questão da clusterização
+Independentemente da estratégia adotada para se comunicar com o banco de dados, é interessante otimizar o seu pool de conexões, a fim de garantir uma boa performance e aproveitamento de recursos do servidor. Por padrão o Knex configura um mínimo de 2 conexões e um máximo de 10, mas isso pode ser facilmente modificado.
+
+Pools muito pequenos podem causar gargalos, e pools muito grandes podem usar mais do banco de dados do que lhe é necessário. Encontrar o balanço correto é fruto de monitoramento e análise constante do ambiente em execução.

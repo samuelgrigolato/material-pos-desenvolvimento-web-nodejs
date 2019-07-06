@@ -1,13 +1,13 @@
 
 
 /**
- * Compara os itens entre origem destino, executando as seguintes ações:
+ * Compara os itens entre origem e destino, executando as seguintes ações:
  * 
  * - "criar" é chamado sempre que um item é encontrado em origem e não em destino.
  * - "atualizar" é chamado sempre que um item é encontrado dos dois lados.
  * - "remover" é chamado sempre que um item está no destino mas não está na origem.
  * 
- * A igualdade entre itens é decidida através de uma chamada ao método "iguais".
+ * A igualdade entre itens é decidida através de uma chamada ao método "saoIguais".
  * 
  * Os vetores originais não são modificados.
  */
