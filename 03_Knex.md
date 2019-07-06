@@ -526,8 +526,136 @@ router.post('/', async (req, res) => {
 });
 ```
 
-Continuar adaptando o endpoint para tratar uma lista de etiquetas, e criar um endpoint para retornar as etiquetas de uma determinada tarefa (de modo seguro).
-discutir sobre controle transacional/unit of work
+O próximo passo é receber e tratar um conjunto de etiquetas. Note que apenas os identificadores das etiquetas são necessários. Faça o seguinte ajuste no módulo `tarefas-service`:
+
+```js
+module.exports.cadastrar = async (tarefa, usuario) => {
+
+    const id = await knex('tarefas')
+        .insert({
+            id: knex.raw('nextval(\'tarefas_id_seq\')'),
+            descricao: tarefa.descricao,
+            previsao: tarefa.previsao,
+            usuario_id: knex('usuarios').select('id').where('login', usuario)
+        })
+        .returning('id')
+        .then(x => x[0]); // .first() não pode ser usado em inserts
+
+    if (tarefa.etiquetas) {
+        tarefa.etiquetas.forEach(etiqueta => {
+            knex('tarefa_etiqueta')
+                .insert({
+                    tarefa_id: id, etiqueta_id: etiqueta
+                }).then();
+        });
+    }
+
+    return id;
+};
+```
+
+A primeira vista parece uma implementação adequada, mas ela possui uma série de problemas. O primeiro deles é que a requisição está retornando *antes* da execução dos inserts na tabela de etiquetas. Isso pode acarretar em condição de corrida com o front-end. Para resolver este ponto existem pelo menos duas opções.
+
+A primeira delas é agregar cada promessa de inserção de etiqueta e usar a promessa combinada como retorno da função original. Veja:
+
+```js
+if (tarefa.etiquetas) {
+    await Promise.all(
+        tarefa.etiquetas.map(etiqueta =>
+            knex('tarefa_etiqueta').insert({
+                tarefa_id: id, etiqueta_id: etiqueta
+            })));
+}
+```
+
+A segunda é usar o utilitário `batchInsert` do próprio knex:
+
+```js
+await knex.batchInsert('tarefa_etiqueta', tarefa.etiquetas.map(x => ({
+    tarefa_id: id,
+    etiqueta_id: x
+})));
+```
+
+O segundo problema com essa implementação é a ausência de controle transacional. O que acontece se você cadastrar uma tarefa com um identificador de etiqueta inexistente ou duplicado? A inclusão desse registro vai falhar, *mas* a tarefa já foi cadastrada e permanecerá no banco, o que dificilmente é o que você, ou seu usuário, deseja.
+
+O knex oferece controle transacional através do método `knex.transaction`. Esse método recebe uma função como parâmetro, que é chamada com uma instância de transação. Essa instância pode então ser usada para construir queries ou ser passada no método `transacting` de queries construídas através do objeto `knex`. Veja:
+
+```js
+module.exports.cadastrar = async (tarefa, usuario) => {
+    return await knex.transaction(async trx => {
+        const id = await knex('tarefas')
+            .transacting(trx)
+            .insert({
+                id: knex.raw('nextval(\'tarefas_id_seq\')'),
+                descricao: tarefa.descricao,
+                previsao: tarefa.previsao,
+                usuario_id: knex('usuarios').select('id').where('login', usuario)
+            })
+            .returning('id')
+            .then(x => x[0]); // .first() não pode ser usado em inserts
+
+        if (tarefa.etiquetas) {
+            await knex
+                .batchInsert('tarefa_etiqueta', tarefa.etiquetas.map(x => ({
+                    tarefa_id: id,
+                    etiqueta_id: x
+                })))
+                .transacting(trx);
+        }
+
+        return id;
+    });
+};
+```
+
+Ao invés de chamar a função `transacting`, o próprio objeto `trx` pode ser usado no lugar do `knex`:
+
+```js
+const id = await trx('tarefas')
+    .insert({
+        id: knex.raw('nextval(\'tarefas_id_seq\')'),
+        descricao: tarefa.descricao,
+        previsao: tarefa.previsao,
+        usuario_id: knex('usuarios').select('id').where('login', usuario)
+    })
+    .returning('id')
+    .then(x => x[0]); // .first() não pode ser usado em inserts
+```
+
+O commit ocorre quando a Promise passada para a função `knex.transaction` resolve com sucesso, enquanto o rollback ocorre no caso de erro nessa promessa. É muito importante garantir a propagação correta da transação, pois qualquer chamada no objeto `knex` sem passar a transação será executada em um contexto transacional separado e poderá resultar em corrupção no estado da base.
+
+Para concluir essa seção, crie um método que busca uma lista de etiquetas dado um identificador de tarefa e um usuário, no módulo `tarefas-service`:
+
+```js
+module.exports.buscarEtiquetas = async (idTarefa, usuario) => {
+    return knex('etiquetas')
+        .join('tarefa_etiqueta', 'etiquetas.id', 'tarefa_etiqueta.etiqueta_id')
+        .join('tarefas', 'tarefas.id', 'tarefa_etiqueta.tarefa_id')
+        .join('usuarios', 'usuarios.id', 'tarefas.usuario_id')
+        .select('etiquetas.id', 'etiquetas.descricao')
+        .where({
+            'tarefa_etiqueta.tarefa_id': idTarefa,
+            'usuarios.login': usuario
+        });
+};
+```
+
+E exponha essa funcionalidade em um novo endpoint no `tarefas-router`:
+
+```js
+router.get('/:id/etiquetas', async (req, res) => {
+    const usuario = req.user.sub;
+    const idTarefa = req.params.id;
+    try {
+        const etiquetas = await tarefasService.buscarEtiquetas(idTarefa, usuario);
+        res.send(etiquetas);
+    } catch (err) {
+        console.error(err);
+        res.status(500).send();
+    }
+});
+```
 
 TODO:
 

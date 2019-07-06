@@ -55,4 +55,16 @@ router.post('/', async (req, res) => {
     }
 });
 
+router.get('/:id/etiquetas', async (req, res) => {
+    const usuario = req.user.sub;
+    const idTarefa = req.params.id;
+    try {
+        const etiquetas = await tarefasService.buscarEtiquetas(idTarefa, usuario);
+        res.send(etiquetas);
+    } catch (err) {
+        console.error(err);
+        res.status(500).send();
+    }
+});
+
 module.exports = router;
