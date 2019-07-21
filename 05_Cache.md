@@ -8,7 +8,6 @@ No âmbito de uma aplicação web, esse conceito pode ser aplicado em várias et
 
 - Armazenamento em memória client-side do navegador do usuário.
 - Uso de cabeçalhos de manipulação de cache suportados pela própria especificação HTTP. Este pode ser entendido como cache HTTP client-side.
-- Ainda na camada HTTP, mas no lado do servidor, através do uso de bibliotecas back-end para este fim.
 - Na camada de modelo (ou qualquer outra camada do back-end), através do uso de *memoização*.
 
 ## Memória client-side (navegador)
@@ -273,15 +272,113 @@ app.get('/nomes', cache('10 seconds'), (_, res) => {
 // ...
 ```
 
-TODO:
+## Memoização server-side
 
-- O que é
-- Camadas de cache em uma aplicação web
-    - Memoização (camada de modelo)
-        fazer na mão
-        usar https://github.com/medikoo/memoizee#readme
-    - HTTP server side
-        fazer um próprio
-        usar https://www.npmjs.com/package/apicache
-    - HTTP client side (headers)
-        útil para arquivos estáticos, mas também pode ser um inferno pra lidar
+Uma das maneiras mais fáceis de explicar o conceito de memoização é, sem dúvida, a aplicação dela no cálculo do enésimo número da sequência de fibonacci. Considere a seguinte implementação Node:
+
+```js
+const process = require('process');
+
+const start = process.hrtime();
+console.log(fib(43));
+const diff = process.hrtime(start);
+console.log(`Tempo de execução: ${diff[0]}s ${diff[1]}ms`);
+
+function fib(n) {
+    if (n <= 1) {
+        return n;
+    }
+    return fib(n - 1) + fib(n - 2);
+}
+```
+
+Na máquina onde esse código foi escrito, ele demora em média 4s para calcular o 43º número da sequência. Por qual motivo existe essa demora? Repare que o algoritmo calcula várias vezes o mesmo valor, em uma estrutura de árvore:
+
+```
+fib(5)
+  fib(4)
+    fib(3)
+      fib(2)
+        fib(1)
+        fib(0)
+      fib(1)
+    fib(2)
+      fib(1)
+      fib(0)
+  fib(3)
+    fib(2)
+      fib(1)
+      fib(0)
+    fib(1)
+```
+
+Veja quantas vezes o `fib(2)` foi calculado, por exemplo. É fácil ver que conforme o número aumenta, essa situação só piora.
+
+Mas onde a memoização entra nesse cenário? Imagine investir um pouco de *espaço em memória* para *memorizar* os cálculos e *reutilizá-los* quando solicitados novamente no futuro. Veja:
+
+```js
+const process = require('process');
+
+const memory = {};
+
+const start = process.hrtime();
+console.log(fib(1000));
+const diff = process.hrtime(start);
+console.log(`Tempo de execução: ${diff[0]}s ${diff[1]}ms`);
+
+function fib(n) {
+    if (!memory[n]) {
+        if (n <= 1) {
+            memory[n] = n;
+        } else {
+            memory[n] = fib(n - 1) + fib(n - 2);
+        }
+    }
+    return memory[n];
+}
+```
+
+Note que agora o limitador passa a ser o tamanho da pilha de chamadas, e não mais o tempo de processamento.
+
+Repare que implementar essa estrutura é um processo repetitivo, e por isso é natural que exista uma biblioteca para facilitá-lo. No caso do Node uma delas é a `memoizee` [1]. Use-a no projeto da API de back-end para implementar um cache de memoização. Comece adicionando a biblioteca no projeto:
+
+```
+npm i memoizee
+```
+
+Ajuste agora o `index.js` para desabilitar o cache via `apicache` e implementar um cache de memoização:
+
+```js
+const express = require('express');
+const cors = require('cors');
+//const apicache = require('apicache');
+const memoizee = require('memoizee');
+
+
+const app = express();
+// const cache = apicache.middleware;
+
+
+app.use(cors());
+
+
+app.get('/nomes'/*, cache('10 seconds')*/, (_, res) => {
+    getNomes().then(nomes => {
+        res.send(nomes);
+    });
+});
+
+const getNomes = memoizee(() => {
+    return new Promise((resolve, _) => {
+        console.log('Executando a busca de nomes real...');
+        setTimeout(() => {
+            resolve([ 'Pessoa 1', 'Pessoa 2', 'Pessoa 3' ]);
+        }, 3000);
+    });
+}, { maxAge: 10000, promise: true });
+
+
+app.listen(3000);
+```
+
+[1] https://github.com/medikoo/memoizee
