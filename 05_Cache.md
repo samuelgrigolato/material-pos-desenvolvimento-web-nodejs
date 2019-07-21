@@ -234,6 +234,45 @@ export class NomesService {
 
 ## Cabeçalhos HTTP (também client-side)
 
+Além da utilização de estruturas JavaScript, é possível utilizar o suporte existente no próprio protocolo HTTP para cache. Inspecione os cabeçalhos de resposta de uma requisição para `GET /nomes`, e veja que o cabeçalho `Cache-Control` não está ali. Por padrão, na ausência desse, o navegador vai usar uma série de heurísticas para definir o tempo de vida do resultado, o que normalmente resulta em requisitar novamente esse conteúdo sempre que solicitado. Ajuste isso no arquivo `index.js` do backend para fornecer um tempo de vida explícito (10 segundos) para a resposta da requisição:
+
+```js
+app.get('/nomes', (_, res) => {
+    setTimeout(() => {
+        res.header('Cache-Control', 'public, max-age=10');
+        res.send([ 'Pessoa 1', 'Pessoa 2', 'Pessoa 3' ]);
+    }, 3000);
+});
+```
+
+Desabilite o cache do frontend implementado na seção anterior (retornando o Observable original diretamente do service ao invés do cache) e teste novamente, navegando da página inicial para a outra página e vice-versa. Note que o Chrome Dev Tools possui um checkbox para desabilitar completamente o cache do navegador, assegure-se que ele esteja desabilitado para efetuar este teste.
+
+Existe um middleware para Express que ajuda na definição de estratégias de cache para cada endpoint, sem a necessidade de manusear os headers diretamente. Esse middleware é o `apicache`. Para utilizá-lo, instale-o no projeto do backend e configure o middleware em cada roteamento conforme apropriado:
+
+```
+npm i apicache
+```
+
+```js
+// ...
+const apicache = require('apicache');
+
+// ...
+
+const cache = apicache.middleware;
+
+// ...
+
+app.get('/nomes', cache('10 seconds'), (_, res) => {
+    console.log('Executando a busca de nomes real...');
+    setTimeout(() => {
+        // res.header('Cache-Control', 'public, max-age=10');
+        res.send([ 'Pessoa 1', 'Pessoa 2', 'Pessoa 3' ]);
+    }, 3000);
+});
+// ...
+```
+
 TODO:
 
 - O que é

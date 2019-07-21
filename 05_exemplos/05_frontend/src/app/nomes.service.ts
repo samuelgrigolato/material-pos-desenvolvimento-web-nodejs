@@ -13,15 +13,17 @@ export class NomesService {
   constructor(private http: HttpClient) { }
 
   getNomes(): Observable<string[]> {
-    if (!this.nomes) {
-      this.nomes = <Observable<string[]>>this.http
-        .get('http://localhost:3000/nomes')
-        .pipe(shareReplay(1));
-      setTimeout(() => {
-        this.nomes = null;
-      }, 10000);
-    }
-    return this.nomes;
+    // if (!this.nomes) {
+    //   this.nomes = <Observable<string[]>>this.http
+    //     .get('http://localhost:3000/nomes')
+    //     .pipe(shareReplay(1));
+    //   setTimeout(() => {
+    //     this.nomes = null;
+    //   }, 10000);
+    // }
+    // return this.nomes;
+    return <Observable<string[]>>this.http
+      .get('http://localhost:3000/nomes');
   }
 
 }
