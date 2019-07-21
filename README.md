@@ -27,6 +27,7 @@ Carga horária: 40 horas.
 * [Apêndice 2 - Executando express em modo cluster](AP02_Express_modo_cluster.md)
 * [Apêndice 3 - Nodemon](AP03_Nodemon.md)
 * [Apêndice 4 - Node e TypeScript](AP04_Node_TypeScript.md)
+* [Apêndice 5 - Estudo de caso](AP05_Estudo_de_caso.md)
 
 ## Gerando PDF
 
