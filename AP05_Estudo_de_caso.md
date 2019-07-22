@@ -12,7 +12,7 @@ O cenário que será implementado é o seguinte:
 
 ## A versão monolítica
 
-Para começar, uma versão monolítica será implementada, e posteriormente quebrada em outros serviços (de forma parecida como ocorre na prática). Como a parte de front-end é bem simples, o middleware estático do próprio express será utilizado, ao invés de Angular.
+Para começar, uma versão monolítica será implementada, e posteriormente quebrada em outros serviços (de forma parecida como ocorre na prática). Como a parte de front-end é bem simples, o middleware de arquivos estáticos do próprio express será utilizado, ao invés do framework Angular.
 
 Crie um novo projeto `npm` e instale o express e o pacote `express-formidable` (será usado para adicionar suporte a envio de dados no formato `multipart/form-data`):
 
@@ -21,7 +21,7 @@ npm init -y
 npm i express express-formidable
 ```
 
-Implemente uma API básica com os middlewares para JSON e arquivos estáticos, além de um endpoint que recebe os dados para efetivar a cotação, passando-os para um módulo de serviço:
+Implemente uma API básica com o middleware formidable e o de arquivos estáticos, além de um endpoint que recebe os dados para efetivar a cotação, passando-os para um módulo de serviço:
 
 ```js
 const express = require('express');
@@ -278,14 +278,14 @@ module.exports.enviar = async function (assunto, texto, para) {
 
 Agora que você possui uma versão monolítica da solução, considere as seguintes mudanças arquiteturais:
 
-- Adição de proxy reverso: Traefik. Isso permitirá a escalabilidade horizontal.
+- Adição de proxy reverso/service discovery/balanceador: Traefik. Isso permitirá a escalabilidade horizontal.
 - Criação de componente separado para envio de e-mails.
 - Uso de Circuit Breaker: Opossum. Isso permite que a aplicação continue resiliente face a queda do componente de envio de e-mails.
 - Adição de suporte para envio de e-mail usando mensageria (RabbitMQ).
 
 No restante deste material você irá implementá-las, uma a uma. Note que todos os componentes podem ser instalados manualmente, mas containeres Docker serão utilizados em alguns casos para facilitar o processo.
 
-### Proxy reverso: Traefik
+### Traefik
 
 O papel de um Proxy Reverso é fazer a ponte entre as requisições externas (ex: da Internet) e os serviços internos da sua solução. O Traefik [1] é uma solução moderna de Proxy Reverso, repleta de funcionalidades.
 
@@ -466,7 +466,7 @@ O que acontece se o componente de envio de e-mail sair do ar? O monolito continu
 
 No caso do Node uma das implementações desse conceito é a biblioteca Opossum [1].
 
-Para utilizá-lo, instale-o primeiro usando `npm`:
+Para utilizá-la, instale-a primeiro usando `npm`:
 
 ```
 npm i opossum
@@ -492,17 +492,61 @@ module.exports.cotar = solicitacao => cotar.fire(solicitacao);
 
 [1] https://github.com/nodeshift/opossum
 
-TODO:
+### Mensageria
 
-- Estudo de caso com proxy rev (traefik), service discovery/lb (consul), circuit breaker (opossum)
-    quebrar em três partes individualmente escaláveis
-    discussão sobre timeouts (em cada camada)
-    https://github.com/nodeshift/opossum
-    nessa primeira versão chamar tudo de modo síncrono
+Ao invés de efetuar uma chamada HTTP e aguardar a resposta, uma alternativa para comunicação entre microsserviços é o uso de mensageria, onde o componente solicitante registra a mensagem em uma fila/tópico específico e o componente responsável por executar o processo *escuta* por mensagens nessa fila/tópico.
 
-    Mensageria, padrão saga e transações distribuídas
-        quebrar a parte de envio de email em um componente que atua via rabbitmq/amqp
-            https://medium.com/@programadriano/rabbitmq-criando-workers-com-node-js-268b40da7789
-        consistência eventual
-        orquestrador
-        coreografia
+Para exemplificar o uso de mensageria, comece instalando uma instância de RabbitMQ usando Docker:
+
+```
+docker run -d -p 5672:5672 -p 15672:15672 --name posdesenvweb-rabbit rabbitmq:3-management
+```
+
+Instale agora a biblioteca `amqplib` nos dois projetos (AMQP é um protocolo de mensageria suportado pelo RabbitMQ):
+
+```
+npm i amqplib
+```
+
+Implemente o consumo de mensagens no arquivo `index.js` do projeto de envio de e-mails:
+
+```js
+// ...
+const amqplib = require('amqplib');
+// ...
+amqplib.connect('amqp://localhost:5672')
+    .then(conn => conn.createChannel())
+    .then(async ch => {
+        await ch.assertQueue('emails');
+        return ch.consume('emails', msg => {
+            if (msg !== null) {
+                const { assunto, texto, para } = JSON.parse(msg.content.toString());
+                emailService.enviar(assunto, texto, para).then(() => ch.ack(msg));
+            }
+        });
+    });
+```
+
+Para testar, acesse o painel do RabbitMQ no endereço `http://localhost:15672`, vá até a parte de filas, encontre a fila `emails` e envie uma mensagem de teste.
+
+Por fim implemente o envio de mensagem no arquivo `cotacao.service.js` no monolito.
+
+```js
+// ...
+const amqplib = require('amqplib');
+// ...
+function enviarEmail(valor, email) {
+    return amqplib.connect('amqp://localhost:5672')
+        .then(conn => conn.createChannel())
+        .then(async ch => {
+            await ch.assertQueue('emails');
+            return ch.sendToQueue('emails', Buffer.from(JSON.stringify({
+                assunto: 'Sua cotação foi processada',
+                texto: `Valor da cotação: ${valor}`,
+                para: email
+            })));
+        });
+}
+```
+
+Uma possível melhoria que não será abordada neste material é um tratamento de erros mais robusto nos casos onde o consumidor de mensagem falhar durante a sua execução.

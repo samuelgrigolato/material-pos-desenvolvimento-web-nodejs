@@ -1,4 +1,5 @@
 const request = require('request');
+const amqplib = require('amqplib');
 const circuitBreaker = require('opossum');
 
 
@@ -78,25 +79,35 @@ function calcularValor(valorFipe, quantidade) {
 
 
 function enviarEmail(valor, email) {
-    return new Promise((resolve, reject) => {
-        request(`http://emails.localhost:8083/enviar`, {
-            json: true,
-            method: 'POST',
-            body: {
+    return amqplib.connect('amqp://localhost:5672')
+        .then(conn => conn.createChannel())
+        .then(async ch => {
+            await ch.assertQueue('emails');
+            return ch.sendToQueue('emails', Buffer.from(JSON.stringify({
                 assunto: 'Sua cotação foi processada',
                 texto: `Valor da cotação: ${valor}`,
                 para: email
-            }
-        }, (err, resp) => {
-            if (err) {
-                reject(err);
-                return;
-            }
-            if (resp.statusCode != 204) {
-                reject(`${resp.statusCode} ${resp.statusMessage}`);
-                return;
-            }
-            resolve();
+            })));
         });
-    });
+    // return new Promise((resolve, reject) => {
+    //     request(`http://emails.localhost:8083/enviar`, {
+    //         json: true,
+    //         method: 'POST',
+    //         body: {
+    //             assunto: 'Sua cotação foi processada',
+    //             texto: `Valor da cotação: ${valor}`,
+    //             para: email
+    //         }
+    //     }, (err, resp) => {
+    //         if (err) {
+    //             reject(err);
+    //             return;
+    //         }
+    //         if (resp.statusCode != 204) {
+    //             reject(`${resp.statusCode} ${resp.statusMessage}`);
+    //             return;
+    //         }
+    //         resolve();
+    //     });
+    // });
 }

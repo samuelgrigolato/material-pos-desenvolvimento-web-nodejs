@@ -1,4 +1,5 @@
 const express = require('express');
+const amqplib = require('amqplib');
 const emailService = require('./email/email.service');
 
 
@@ -15,6 +16,19 @@ app.post('/enviar', async (req, res) => {
         res.status(500).send();
     }
 });
+
+
+amqplib.connect('amqp://localhost:5672')
+    .then(conn => conn.createChannel())
+    .then(async ch => {
+        await ch.assertQueue('emails');
+        return ch.consume('emails', msg => {
+            if (msg !== null) {
+                const { assunto, texto, para } = JSON.parse(msg.content.toString());
+                emailService.enviar(assunto, texto, para).then(() => ch.ack(msg));
+            }
+        });
+    });
 
 
 app.listen(3001);
