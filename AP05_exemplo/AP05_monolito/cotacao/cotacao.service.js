@@ -1,13 +1,17 @@
 const request = require('request');
+const circuitBreaker = require('opossum');
 
 
-module.exports.cotar = async function (solicitacao) {
+const cotar = circuitBreaker(async function (solicitacao) {
     const idMarca = await buscarMarca(solicitacao.marca);
     const idModelo = await buscarModelo(idMarca, solicitacao.modelo);
     const valorFipe = await buscarValor(idMarca, idModelo, solicitacao.ano);
     const valor = calcularValor(valorFipe, solicitacao.quantidade);
     return enviarEmail(valor, solicitacao.email);
-};
+}, {
+    errorThresholdPercentage: 50
+});
+module.exports.cotar = solicitacao => cotar.fire(solicitacao);
 
 
 function buscarMarca(marca) {

@@ -460,6 +460,38 @@ function enviarEmail(valor, email) {
 }
 ```
 
+### Circuit Breaker
+
+O que acontece se o componente de envio de e-mail sair do ar? O monolito continuará realizando chamadas para ele, gastando recursos desnecessariamente. Além disso, não adianta nada o cálculo todo ser executado se o e-mail não puder ser enviado no final. Uma forma de resolver este problema é através do uso de um circuit breaker, que é um componente de código que identifica recorrência na falha de execução e, caso ela atinja um determinado limite configurável, começa a retornar falha automaticamente sem a necessidade de chamar o recurso real.
+
+No caso do Node uma das implementações desse conceito é a biblioteca Opossum [1].
+
+Para utilizá-lo, instale-o primeiro usando `npm`:
+
+```
+npm i opossum
+```
+
+Altere agora o arquivo `cotacao.service.js` da seguinte maneira:
+
+```js
+const circuitBreaker = require('opossum');
+
+
+const cotar = circuitBreaker(async function (solicitacao) {
+    const idMarca = await buscarMarca(solicitacao.marca);
+    const idModelo = await buscarModelo(idMarca, solicitacao.modelo);
+    const valorFipe = await buscarValor(idMarca, idModelo, solicitacao.ano);
+    const valor = calcularValor(valorFipe, solicitacao.quantidade);
+    return enviarEmail(valor, solicitacao.email);
+}, {
+    errorThresholdPercentage: 50
+});
+module.exports.cotar = solicitacao => cotar.fire(solicitacao);
+```
+
+[1] https://github.com/nodeshift/opossum
+
 TODO:
 
 - Estudo de caso com proxy rev (traefik), service discovery/lb (consul), circuit breaker (opossum)
