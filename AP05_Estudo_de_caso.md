@@ -274,6 +274,192 @@ module.exports.enviar = async function (assunto, texto, para) {
 };
 ```
 
+## A refatoração
+
+Agora que você possui uma versão monolítica da solução, considere as seguintes mudanças arquiteturais:
+
+- Adição de proxy reverso: Traefik. Isso permitirá a escalabilidade horizontal.
+- Criação de componente separado para envio de e-mails.
+- Uso de Circuit Breaker: Opossum. Isso permite que a aplicação continue resiliente face a queda do componente de envio de e-mails.
+- Adição de suporte para envio de e-mail usando mensageria (RabbitMQ).
+
+No restante deste material você irá implementá-las, uma a uma. Note que todos os componentes podem ser instalados manualmente, mas containeres Docker serão utilizados em alguns casos para facilitar o processo.
+
+### Proxy reverso: Traefik
+
+O papel de um Proxy Reverso é fazer a ponte entre as requisições externas (ex: da Internet) e os serviços internos da sua solução. O Traefik [1] é uma solução moderna de Proxy Reverso, repleta de funcionalidades.
+
+Uma vez instalado (siga as instruções no site da ferramenta e garanta que `traefik -h` esteja funcionando no seu terminal) crie um arquivo de configuração na raíz do projeto, chamado `traefik.toml`, com o seguinte conteúdo:
+
+```
+[global]
+  checkNewVersion = true
+  sendAnonymousUsage = true
+
+[entryPoints]
+  [entryPoints.web]
+    address = ":8081"
+  [entryPoints.traefik]
+    address = ":8082"
+
+[log]
+
+[api]
+
+[ping]
+
+[file]
+
+[backends]
+  [backends.monolito]
+    [backends.monolito.servers]
+      [backends.monolito.servers.server0]
+        url = "http://127.0.0.1:3000"
+        weight = 1
+
+[frontends]
+  [frontends.frontend1]
+    entryPoints = ["web"]
+    backend = "monolito"
+    passHostHeader = true
+    priority = 42
+    [frontends.frontend1.routes]
+      [frontends.frontend1.routes.route0]
+        rule = "Host:monolito.localhost"
+```
+
+Adicione uma entrada para `monolito.localhost` no seu arquivo de hosts. Depois disso, execute o serviço com o seguinte comando:
+
+```
+traefik --configFile=traefik.toml
+```
+
+Teste se funcionou acessando a URL `http://monolito.localhost:8081`. Abra o endereço `http://localhost:8082/` no navegador para acessar o dashboard.
+
+[1] https://traefik.io/
+
+### Separação do envio de e-mail
+
+O próximo passo é separar o componente de envio de e-mail. A API do monolito irá chamar esse novo componente usando a biblioteca `request`.
+
+Crie um novo projeto usando `npm init`, e adicione as dependências `express` e `nodemailer`:
+
+```
+npm init -y
+npm i express nodemailer
+```
+
+Mova o diretório `email` do monolito para este novo projeto, e crie um arquivo `index.js` nele com o seguinte conteúdo:
+
+```js
+const express = require('express');
+const emailService = require('./email/email.service');
+
+
+const app = express();
+app.use(express.json());
+
+
+app.post('/enviar', async (req, res) => {
+    try {
+        const { assunto, texto, para } = req.body;
+        await emailService.enviar(assunto, texto, para);
+        res.status(204).send();
+    } catch (err) {
+        res.status(500).send();
+    }
+});
+
+
+app.listen(3001);
+```
+
+Adicione esse novo serviço no traefik (note o uso de um novo entry point, voltado para uso interno apenas):
+
+```
+[global]
+  checkNewVersion = true
+  sendAnonymousUsage = true
+
+[entryPoints]
+  [entryPoints.web]
+    address = ":8081"
+  [entryPoints.traefik]
+    address = ":8082"
+  [entryPoints.svc]
+    address = ":8083"
+    [entryPoints.svc.whitelist]
+      sourceRange = ["127.0.0.1/32", "::1/128"]
+
+[log]
+
+[api]
+
+[ping]
+
+[file]
+
+[backends]
+  [backends.monolito]
+    [backends.monolito.servers]
+      [backends.monolito.servers.server0]
+        url = "http://127.0.0.1:3000"
+        weight = 1
+  [backends.emails]
+    [backends.emails.servers]
+      [backends.emails.servers.server0]
+        url = "http://127.0.0.1:3001"
+        weight = 1
+
+[frontends]
+  [frontends.frontend1]
+    entryPoints = ["web"]
+    backend = "monolito"
+    passHostHeader = true
+    priority = 42
+    [frontends.frontend1.routes]
+      [frontends.frontend1.routes.route0]
+        rule = "Host:monolito.localhost"
+  [frontends.frontend2]
+    entryPoints = ["svc"]
+    backend = "emails"
+    passHostHeader = true
+    priority = 42
+    [frontends.frontend2.routes]
+      [frontends.frontend2.routes.route0]
+        rule = "Host:emails.localhost"
+```
+
+Adicione a entrada `emails.localhost` no seu arquivo de hosts.
+
+Ajuste agora o arquivo `cotacao.service.js` para consumir esse novo serviço:
+
+```js
+function enviarEmail(valor, email) {
+    return new Promise((resolve, reject) => {
+        request(`http://emails.localhost:8083/enviar`, {
+            json: true,
+            method: 'POST',
+            body: {
+                assunto: 'Sua cotação foi processada',
+                texto: `Valor da cotação: ${valor}`,
+                para: email
+            }
+        }, (err, resp) => {
+            if (err) {
+                reject(err);
+                return;
+            }
+            if (resp.statusCode != 204) {
+                reject(`${resp.statusCode} ${resp.statusMessage}`);
+                return;
+            }
+            resolve();
+        });
+    });
+}
+```
+
 TODO:
 
 - Estudo de caso com proxy rev (traefik), service discovery/lb (consul), circuit breaker (opossum)

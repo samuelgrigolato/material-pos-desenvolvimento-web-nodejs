@@ -1,0 +1,51 @@
+[global]
+  checkNewVersion = true
+  sendAnonymousUsage = true
+
+[entryPoints]
+  [entryPoints.web]
+    address = ":8081"
+  [entryPoints.traefik]
+    address = ":8082"
+  [entryPoints.svc]
+    address = ":8083"
+    [entryPoints.svc.whitelist]
+      sourceRange = ["127.0.0.1/32", "::1/128"]
+
+[log]
+
+[api]
+
+[ping]
+
+[file]
+
+[backends]
+  [backends.monolito]
+    [backends.monolito.servers]
+      [backends.monolito.servers.server0]
+        url = "http://127.0.0.1:3000"
+        weight = 1
+  [backends.emails]
+    [backends.emails.servers]
+      [backends.emails.servers.server0]
+        url = "http://127.0.0.1:3001"
+        weight = 1
+
+[frontends]
+  [frontends.frontend1]
+    entryPoints = ["web"]
+    backend = "monolito"
+    passHostHeader = true
+    priority = 42
+    [frontends.frontend1.routes]
+      [frontends.frontend1.routes.route0]
+        rule = "Host:monolito.localhost"
+  [frontends.frontend2]
+    entryPoints = ["svc"]
+    backend = "emails"
+    passHostHeader = true
+    priority = 42
+    [frontends.frontend2.routes]
+      [frontends.frontend2.routes.route0]
+        rule = "Host:emails.localhost"
