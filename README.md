@@ -28,6 +28,7 @@ Carga horária: 40 horas.
 * [Apêndice 3 - Nodemon](AP03_Nodemon.md)
 * [Apêndice 4 - Node e TypeScript](AP04_Node_TypeScript.md)
 * [Apêndice 5 - Estudo de caso](AP05_Estudo_de_caso.md)
+* [Apêndice 6 - Resumo teórico](AP06_Resumo_teórico.md)
 
 ## Gerando PDF
 
