@@ -58,7 +58,7 @@ Composto por um *servidor web*, capaz de aceitar as requisições HTTP, e normal
 
 ## Modelo de execução do JavaScript
 
-Os navegadores executam JavaScript de modo Single Thread e seguindo uma arquitetura baseada em eventos. Mas o que exatamente isso significa?
+Os navegadores executam JavaScript em modo Single Thread e seguindo uma arquitetura baseada em eventos. Mas o que exatamente isso significa?
 
 Um processo no sistema operacional pode iniciar uma ou mais *threads*. De modo simplificado, cada *thread* é uma sequência de execução, podendo ou não ser executada paralelamente às outras (em máquinas com mais de um núcleo). Mesmo com um único núcleo, as *threads* normalmente são *escalonadas* pelo sistema operacional de modo a darem a impressão de paralelismo através de execução concorrente.
 
@@ -66,7 +66,7 @@ O desenvolvimento *multi-thread* traz consigo um conjunto de desafios, principal
 
 Na concepção do JavaScript, foi definido que a execução se daria em uma única thread (pelo menos do ponto de vista do desenvolvedor. Nada impede, e isso de fato ocorre, que motores JavaScript executem em múltiplas threads, desde que isso fique abstraído do desenvolvedor final). Mas isso soa bem engessado. Como as aplicações conseguem atingir níveis de responsividade e dinamismo sem a capacidade de executar código de forma concorrente/paralela?
 
-É verdade que não há como executar código JavaScript de forma *paralela*, mas a *concorrência* pode ser atingida sim, através de um conceito chamado *Event Loop*.
+É verdade que não há como executar código JavaScript de forma *paralela*¹, mas a *concorrência* pode ser atingida sim, através de um conceito chamado *Event Loop*.
 
 Todo motor de JavaScript implementa um loop de eventos, basicamente composto por uma fila de tarefas. Todo código JavaScript é uma tarefa chamada por esse loop, seja essa tarefa criada por um evento de usuário (clique em um botão) ou evento de navegador (término do carregamento de uma página, término de uma requisição AJAX, término do tempo de espera de temporizadores, etc.). Considere o seguinte exemplo:
 
@@ -92,6 +92,8 @@ O loop de eventos inicia processando a tag `script`, que define a função `diga
 
 Note que nada aqui foi executado de modo paralelo, mas a ideia de concorrência é fortemente presente graças ao uso de um loop de eventos.
 
+¹ Hoje em dia existem Web Workers (no contexto de navegadores) e Worker Threads (no Node.js) que entregam paralelismo real para o mundo JavaScript, então essa afirmação precisa ser utilizada com cuidado.
+
 ## Requisições AJAX
 
 Esse modelo de execução gerou um padrão de codificação muito difundido em aplicações web, na parte do front-end: a execução de requisições HTTP iniciadas pelo próprio JavaScript, de modo assíncrono. Quando uma resposta é recebida, um *callback* é disparado, ou em outras palavras, o navegador coloca uma tarefa no loop de eventos para executar uma função passando a resposta da requisição, seja ela positiva ou não. Veja o exemplo:
@@ -99,26 +101,25 @@ Esse modelo de execução gerou um padrão de codificação muito difundido em a
 ```html
 <!DOCTYPE html>
 <html>
+<head>
+  <meta charset='utf-8'>
+  <meta http-equiv='X-UA-Compatible' content='IE=edge'>
+  <title>Fetch</title>
+  <meta name='viewport' content='width=device-width, initial-scale=1'>
+</head>
 <body>
   <script>
-    function tratarErro(erro) {
-      document.getElementById('resultado').innerText = `Erro: ${erro}`;
-    }
     function buscar() {
-      fetch('https://rickandmortyapi.com/api/character/1').then(resp => {
-        if (resp.ok) {
-          resp.json().then(dados => {
-            document.getElementById('resultado').innerText = `Nome: ${dados.name}`;
-          }, tratarErro);
-        } else {
-          tratarErro(resp.statusText);
-        }
-      }, tratarErro);
+      console.log("buscando...");
+      fetch('https://covid19-brazil-api.now.sh/api/report/v1').then(function (resp) {
+        resp.json().then(function (dados) {
+          document.getElementById('resultado').innerText = JSON.stringify(dados, undefined, 2);
+        });
+      });
     }
   </script>
   <button onclick="buscar()">Buscar</button>
-  <span id="resultado">
-  </span>
+  <pre id="resultado"></pre>
 </body>
 </html>
 ```
