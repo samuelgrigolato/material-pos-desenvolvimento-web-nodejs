@@ -52,11 +52,11 @@ Composto por um *servidor web*, capaz de aceitar as requisições HTTP, e normal
 
 ## 1.1.6 Modelo de execução do JavaScript
 
-Os navegadores executam JavaScript de modo Single Thread e seguindo uma arquitetura baseada em eventos. Mas o que exatamente isso significa?
+Os navegadores executam JavaScript de modo Single Thread (exceção: sua aplicação pode utilizar Web Workers para atingir multi thread em um ambiente web) e seguindo uma arquitetura baseada em eventos. Mas o que exatamente isso significa?
 
 Na concepção do JavaScript, foi definido que a execução se daria em uma única thread (pelo menos do ponto de vista do desenvolvedor. Nada impede, e isso de fato ocorre, que motores JavaScript executem em múltiplas threads, desde que isso fique abstraído do desenvolvedor final). Mas isso soa bem engessado. Como as aplicações conseguem atingir níveis de responsividade e dinamismo sem a capacidade de executar código de forma concorrente/paralela?
 
-É verdade que não há como executar código JavaScript de forma *paralela*, mas a *concorrência* pode ser atingida sim, através de um conceito chamado *Event Loop*.
+É verdade que não há como executar código JavaScript de forma *paralela* (novamente, cuidado com Web Workers e Worker Threads Node.js, que dão um nó nessa limitação), mas a *concorrência* pode ser atingida sim, através de um conceito chamado *Event Loop*.
 
 Todo motor de JavaScript implementa um loop de eventos, basicamente composto por uma fila de tarefas. Todo código JavaScript é uma tarefa chamada por esse loop, seja essa tarefa criada por um evento de usuário (clique em um botão) ou evento de navegador (término do carregamento de uma página, término de uma requisição AJAX, término do tempo de espera de temporizadores, etc.).
 
