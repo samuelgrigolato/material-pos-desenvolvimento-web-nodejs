@@ -18,17 +18,12 @@ Carga horária: 40 horas.
 
 ## Índice
 
+* [00 - Prólogo.js](00_Prologo.md)
 * [01 - Node.js](01_Nodejs.md)
 * [02 - Express](02_Express.md)
 * [03 - Knex](03_Knex.md)
 * [04 - Stateless vs stateful](04_Stateless_vs_stateful.md)
 * [05 - Cache](05_Cache.md)
-* [Apêndice 1 - URL ao invés de Querystring](AP01_URL.md)
-* [Apêndice 2 - Executando express em modo cluster](AP02_Express_modo_cluster.md)
-* [Apêndice 3 - Nodemon](AP03_Nodemon.md)
-* [Apêndice 4 - Node e TypeScript](AP04_Node_TypeScript.md)
-* [Apêndice 5 - Estudo de caso](AP05_Estudo_de_caso.md)
-* [Apêndice 6 - Resumo teórico](AP06_Resumo_teórico.md)
 
 ## Gerando PDF
 

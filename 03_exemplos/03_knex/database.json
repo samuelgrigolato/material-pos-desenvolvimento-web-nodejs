@@ -1,3 +1,0 @@
-{
-  "dev": "postgres://postgres:postgres@localhost:5432/tarefas1"
-}
