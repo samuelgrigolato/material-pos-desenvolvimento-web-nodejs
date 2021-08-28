@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset='utf-8'>
+  <meta http-equiv='X-UA-Compatible' content='IE=edge'>
+  <title>Calculadora</title>
+  <meta name='viewport' content='width=device-width, initial-scale=1'>
+</head>
+<body>
+
+  <p>
+    A: <input id="a">
+  </p>
+
+  <p>
+    B: <input id="b">
+  </p>
+
+  <p>
+    <button onclick="somar()">Somar</button>
+  </p>
+
+  <p id="resultado"></p>
+  <p id="erro" style="color: red;"></p>
+
+  <script>
+
+    function extrairNumero (idDoCampo, descricaoLegivelDoCampo) {
+      const str = document.getElementById(idDoCampo).value;
+      if (str === "") {
+        throw new Error(`Informe ${descricaoLegivelDoCampo}`);
+      }
+      const numero = parseInt(str);
+      if (isNaN(numero)) {
+        throw new Error(`${descricaoLegivelDoCampo} deve ser um número`);
+      }
+      return numero;
+    }
+
+    function somar() {
+      try {
+        const a = extrairNumero("a", "A");
+        const b = extrairNumero("b", "B");
+        document.getElementById("erro").innerText = "";
+        document.getElementById("resultado").innerText = a + b;
+      } catch (err) {
+        document.getElementById("erro").innerText = err.message;
+        document.getElementById("resultado").innerText = "";
+      }
+    }
+
+    // function somar() {
+    //   const aStr = document.getElementById("a").value;
+    //   const bStr = document.getElementById("b").value;
+    //   if (aStr === "") {
+    //     document.getElementById("erro").innerText = "Informe A";
+    //     document.getElementById("resultado").innerText = "";
+    //     return;
+    //   }
+    //   if (bStr === "") {
+    //     document.getElementById("erro").innerText = "Informe B";
+    //     document.getElementById("resultado").innerText = "";
+    //     return;
+    //   }
+    //   const a = parseInt(aStr);
+    //   const b = parseInt(bStr);
+    //   if (isNaN(a)) { // NaN === NaN (isso é falso, isso mesmo)
+    //     document.getElementById("erro").innerText = "A deve ser um número";
+    //     document.getElementById("resultado").innerText = "";
+    //     return;
+    //   }
+    //   if (isNaN(b)) { // NaN === NaN (isso é falso, isso mesmo)
+    //     document.getElementById("erro").innerText = "B deve ser um número";
+    //     document.getElementById("resultado").innerText = "";
+    //     return;
+    //   }
+    //   const resultado = a + b;
+    //   document.getElementById("erro").innerText = "";
+    //   document.getElementById("resultado").innerText = resultado;
+    // }
+
+  </script>
+</body>
+</html>

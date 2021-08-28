@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset='utf-8'>
+  <meta http-equiv='X-UA-Compatible' content='IE=edge'>
+  <title>Fetch com callback</title>
+  <meta name='viewport' content='width=device-width, initial-scale=1'>
+</head>
+<body>
+  <script>
+    function fetchComCallback(url, callback) {
+      fetch(url)
+        .then(resp => resp.json())
+        .then(json => callback(undefined, json))
+        .catch(err => callback(err));
+    }
+
+    fetchComCallback("https://viacep.com.br/ws/14820464/json/", function (err, resp) {
+      if (err) console.error('ERRO', err);
+      else console.log('SUCESSO', resp);
+    });
+  </script>
+</body>
+</html>

@@ -1,1259 +1,967 @@
 # Introdução ao Node.js
 
-Antes de discutir sobre Node.js, vale relembrar a estrutura de uma aplicação web.
+Nós vimos código Javascript executando no navegador e na nossa API, mas ainda está longe de estar claro como tudo funciona "por baixo do capô". Uma pessoa vindo de outra linguagem pode trazer consigo conceitos e tentar mapeá-los diretamente e sofrer muito no processo. Por exemplo, você já deve ter ouvido falar (ou está ouvindo agora) que o Javascript executa *em uma única thread* (ignore os módulos Web Worker / Worker Threads caso os conheça). Levando isso em conta, como justificar o funcionamento desse bloco de código?
 
-Mas o que é uma aplicação web? Para os efeitos dessa disciplina, a seguinte definição (texto próprio) será utilizada:
+```js
+for (let i = 0; i < 5; i++) {
+  setTimeout(function () {
+    console.log(`i=${i}`);
+  }, Math.random() * 1000);
+}
+```
 
-> Uma aplicação web é um software que disponibiliza sua funcionalidade através de conexões de rede, normalmente consumidas por navegadores web através da Internet. Outros clientes (como aplicações em dispositivos móveis) e topologias de rede que não dependem da Internet também são possíveis e não a descaracterizam.
+Nota: troque `let` para `var` e veja o que acontece. O problema aqui é que o escopo de variáveis declaradas com `var` é sempre da função enquanto `let` fica restrito ao bloco (neste caso o bloco é a iteração) onde foi declarado. A forma de resolver antes das palavras-chave `let` e `const` era:
 
-Com base nessa definição, é possível revisitar alguns conceitos chaves para qualquer aplicação web. São eles:
-
-## Protocolo HTTP
-
-É o protocolo mais conhecido e difundido na construção de aplicações web. Baseado no protocolo TCP/IP, define uma abstração para que clientes (dentre eles, navegadores web) efetuem *requisições* e recebam *respostas*.
-
-Durante sua concepção, o protocolo HTTP (junto com a linguagem HTML) tinha um propósito bem diferente do atual: permitir o acesso e modificação de documentos de texto com formatações simples e *links* navegáveis. Para atender a este objetivo, bastava permitir uma comunicação unilateral (partindo do cliente).
-
-## Requisição HTTP
-
-Sempre que um cliente web (ex: navegador) precisa de alguma informação de um servidor (ex: uma página HTML, uma folha de estilo, uma imagem, etc.) ele a solicita através de uma requisição HTTP¹. Essa requisição é composta das seguintes partes:
-
-* **Método:** define o objetivo da requisição. Os principais métodos HTTP são: GET/POST/PUT/PATCH/DELETE.
-
-* **Caminho:** é a parte que fica *depois* do endereço do servidor, incluindo a *query string*. Como exemplo, considere a URL abaixo:
-
-> http://www.minhaaplicacao.com/clientes?nome=Maria
-
-A parte antes do `://`, `http`, é o protocolo de comunicação utilizado para iniciar a conversa com o servidor. `www.minhaaplicacao.com` é um nome completo de domínio (*Fully-Qualified Domain Name*, FQDN), passado pelo sistema de DNS resultando em um endereço IP. Opcionalmente uma porta pode ser definida, caso contrário a porta padrão do protocolo de comunicação é usada (no caso do protocolo HTTP essa porta padrão é a 80). O cliente usa o IP e a porta para estabelecer uma conexão TCP, e enfim chegamos ao *Caminho* da requisição, que é tudo que ficou *depois* do FQDN e da opcional porta. No caso acima, esse caminho é `/clientes?nome=Maria`.
-
-* **Cabeçalhos (Headers):** são atributos da requisição que podem ser usados para diversos fins, como formatos aceitos, autorização/autenticação, idiomas suportados, etc. Os *cookies*, por exemplo, nada mais são que um *header* especialmente processado pelos servidores e navegadores, para dar a impressão de estado persistente entre várias conexões.
-
-* **Corpo:** dependendo do método da requisição, um *corpo* pode ser enviado junto com ela. Esse corpo pode ser o conteúdo de um formulário preenchido pelo usuário, um arquivo selecionado para *upload*, um objeto no formato JSON, dentre outras coisas.
-
-Durante o processamento da requisição HTTP, o servidor produz uma *resposta*, assim composta:
-
-* **Status Code:** um valor numérico que indica de maneira geral o resultado daquela requisição. Dividida em 6 principais grupos, de acordo com a *centena* do código: 1xx (informativo), 2xx (sucesso), 3xx (redirecionamento), 4xx (erro do cliente), 5xx (erro no servidor). Alguns exemplos clássicos: 404 (página não encontrada), 403 (não autorizado), 301 (redirecionamento permanente), 200 (sucesso).
-
-* **Cabeçalhos:** a resposta também contém cabeçalhos, assim como a requisição. Um exemplo é o cabeçalho `Content-Type`, que descreve o formato do corpo da resposta.
-
-* **Corpo:** quando aplicável, uma resposta pode conter um corpo, seja ele uma imagem, uma página HTML, um objeto JSON, um PDF para download, ou qualquer outra coisa.
-
-¹ Atualmente existem outras formas de se efetuar essa comunicação, como WebSockets, mas para fins de simplificar a revisão essas outras tecnologias foram desconsideradas.
-
-## Front-end (lado do cliente)
-
-É possível observar que ao desenvolver uma aplicação web, é necessário se preocupar com pelo menos dois componentes: o navegador, responsável pela interação com o usuário, e o servidor, responsável por processar as requisições.
-
-Como funciona então o desenvolvimento no lado do cliente? Não é regra, mas normalmente se espera o uso de um *navegador web* (Chrome, Firefox, Edge, Safari, etc.). Esses navegadores estão preparados para mostrar páginas HTML, que por sua vez podem depender de folhas de estilo CSS e código JavaScript.
-
-## JavaScript no navegador web
-
-Originalmente, a linguagem JavaScript foi concebida com o intuito de permitir a implementação de dinamizações simples nas páginas web, como validações em campos de formulário, estilização dinâmica, etc. Não se pensava no uso do JavaScript como principal linguagem em uma aplicação (como é comum hoje em dia), muito menos no uso dele como linguagem no lado servidor (como essa disciplina inteira propõe e defende).
-
-Note que o fato de usar JavaScript no servidor, através de uma ferramenta como o Node.js, não muda em nada o fato de existirem requisições HTTP no meio do caminho. Uma boa regra pra se ter em mente é: para o código JavaScript que está sendo executado no navegador/cliente, é impossível discernir se o servidor está sendo desenvolvido em JavaScript, Java, Python ou qualquer outra linguagem. O navegador e o servidor conversam entre si usando HTTP, o Node.js não muda isso (e nem tem essa intenção).
-
-## Back-end (lado do servidor)
-
-Composto por um *servidor web*, capaz de aceitar as requisições HTTP, e normalmente por um *framework web*, responsável por facilitar o desenvolvimento do software que entende as requisições e gera as respostas apropriadas, conversando com quaisquer fontes de dados (ex: banco de dados relacional) ou serviços externos (ex: API para envio de email) necessários para isso. É aqui que entra o Node.js e todo o seu ecossistema.
-
-## Modelo de execução do JavaScript
-
-Os navegadores executam JavaScript em modo Single Thread e seguindo uma arquitetura baseada em eventos. Mas o que exatamente isso significa?
-
-Um processo no sistema operacional pode iniciar uma ou mais *threads*. De modo simplificado, cada *thread* é uma sequência de execução, podendo ou não ser executada paralelamente às outras (em máquinas com mais de um núcleo). Mesmo com um único núcleo, as *threads* normalmente são *escalonadas* pelo sistema operacional de modo a darem a impressão de paralelismo através de execução concorrente.
-
-O desenvolvimento *multi-thread* traz consigo um conjunto de desafios, principalmente quando há o compartilhamento de *recursos* (periféricos, sistema de arquivos, etc.) e *estado* (memória).
-
-Na concepção do JavaScript, foi definido que a execução se daria em uma única thread (pelo menos do ponto de vista do desenvolvedor. Nada impede, e isso de fato ocorre, que motores JavaScript executem em múltiplas threads, desde que isso fique abstraído do desenvolvedor final). Mas isso soa bem engessado. Como as aplicações conseguem atingir níveis de responsividade e dinamismo sem a capacidade de executar código de forma concorrente/paralela?
-
-É verdade que não há como executar código JavaScript de forma *paralela*¹, mas a *concorrência* pode ser atingida sim, através de um conceito chamado *Event Loop*.
-
-Todo motor de JavaScript implementa um loop de eventos, basicamente composto por uma fila de tarefas. Todo código JavaScript é uma tarefa chamada por esse loop, seja essa tarefa criada por um evento de usuário (clique em um botão) ou evento de navegador (término do carregamento de uma página, término de uma requisição AJAX, término do tempo de espera de temporizadores, etc.). Considere o seguinte exemplo:
-
-```html
-<!DOCTYPE html>
-<html>
-<body onload="digaOi()">
-  <script>
-    function digaOi() {
-      console.log('Oi!');
-    }
+```js
+for (var i = 0; i < 5; i++) {
+  (function (thisI) {
     setTimeout(function () {
-      console.log('5s depois...');
-    }, 5000);
-    console.log('fim da tag script');
-  </script>
-  <button onclick="digaOi()">Diga oi!</button>
-</body>
-</html>
+      console.log(`i=${thisI}`);
+    }, Math.random() * 1000);
+  })(i);
+}
 ```
 
-O loop de eventos inicia processando a tag `script`, que define a função `digaOi`, registra uma outra tarefa para ser executada depois de 5 segundos (note que isso só é possível pois funções são *cidadãs de primeira classe* no JavaScript, o método `setTimeout` está recebendo uma função como parâmetro), e por fim escreve um texto no console do navegador. Assim que a página termina de ser processada, o próprio navegador executa o script contido no atributo `onload` do elemento `body`. E também, sempre que o usuário clica no botão "Diga oi!", uma tarefa é registrada no loop de eventos, responsável por executar o script do atributo `onclick` deste botão.
+Repare que não estamos analisando um exemplo artificial, mesmo no código de hello world da seção anterior nós vimos o uso de funções passadas como callback (de fato isso é uma das características mais marcantes do desenvolvimento Node.js). Isso indica que é essencial ter uma sólida compreensão do funcionamento do Javascript antes de se aventurar com a plataforma.
 
-Note que nada aqui foi executado de modo paralelo, mas a ideia de concorrência é fortemente presente graças ao uso de um loop de eventos.
+## A engine V8
 
-¹ Hoje em dia existem Web Workers (no contexto de navegadores) e Worker Threads (no Node.js) que entregam paralelismo real para o mundo JavaScript, então essa afirmação precisa ser utilizada com cuidado.
+Javascript é uma linguagem com muitas implementações (também chamadas de engines). Uma dessas engines é a V8 (usada nos navegadores baseados no Chromium). Essa engine também é a responsável por executar aplicações Node.js.
 
-## Requisições AJAX
+## O Event Loop
 
-Esse modelo de execução gerou um padrão de codificação muito difundido em aplicações web, na parte do front-end: a execução de requisições HTTP iniciadas pelo próprio JavaScript, de modo assíncrono. Quando uma resposta é recebida, um *callback* é disparado, ou em outras palavras, o navegador coloca uma tarefa no loop de eventos para executar uma função passando a resposta da requisição, seja ela positiva ou não. Veja o exemplo:
+Event Loop é o centro do modelo de execução do Javascript, independente da engine utilizada. Para entender do que se trata nada melhor do que uma ferramenta visual que nos ajuda neste processo: http://latentflip.com/loupe (também existe essa que permite visualizar também micro tasks: https://www.jsv9000.app/). Use esses códigos e verifique o funcionamento:
+
+```js
+function a() { console.log('a'); }
+function b() { a(); }
+function c() { b(); }
+c();
+```
+
+```js
+function a() { console.log('a'); }
+function b() {
+  setTimeout(function () {
+    console.log('b1');
+  }, 1000);
+  a();
+  setTimeout(function () {
+    console.log('b2');
+  }, 500);
+}
+function c() { b(); }
+c();
+```
+
+Use a ferramenta jsv9000 para este aqui:
+
+```js
+function respToText (resp) { return resp.text(); }
+
+function printBeginning (text) { console.log(text.substr(0, 50)); }
+
+fetch('https://viacep.com.br/ws/14820464/json/')
+  .then(respToText)
+  .then(printBeginning);
+
+let i = 0;
+function ping () {
+  if (i < 10) {
+    i++;
+    setTimeout(ping, Math.random() * 50);
+  }
+}
+setTimeout(ping, Math.random() * 50);
+```
+
+Volte para a outra ferramenta e agora adicione também HTML na seção inferior:
+
+```js
+function um () {
+  setTimeout(function () {
+    console.log('um');
+  }, 1000);
+}
+$.on("#um", "click", um);
+
+function cpu () {
+  for (let i = 0; i < 5; i++) {}
+}
+$.on("#cpu", "click", cpu);
+```
 
 ```html
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset='utf-8'>
-  <meta http-equiv='X-UA-Compatible' content='IE=edge'>
-  <title>Fetch</title>
-  <meta name='viewport' content='width=device-width, initial-scale=1'>
-</head>
-<body>
-  <script>
-    function buscar() {
-      console.log("buscando...");
-      fetch('https://covid19-brazil-api.now.sh/api/report/v1').then(function (resp) {
-        resp.json().then(function (dados) {
-          document.getElementById('resultado').innerText = JSON.stringify(dados, undefined, 2);
-        });
-      });
+<button id="um">1s</button>
+<button id="cpu">"Bastante" CPU</button>
+```
+
+Após a análise desses exemplos podemos compreender melhor alguns conceitos do Event Loop:
+
+* Task: bloco de código Javascript síncrono que sempre executa do início ao fim. Apenas uma task pode estar rodando em um mesmo instante. Uma task registra outras tasks ou faz chamadas para Web APIs que futuramente vão agendar tasks;
+
+* Task Queue: é a fila de tasks principal, a mais antiga nessa fila é a próxima a ser executada. No caso do Node.js, se não existirem mais tasks nessa fila nem Web APIs em execução a aplicação é encerrada. Esse detalhe pode causar situações onde sua aplicação não fecha mesmo após o script inicial ter finalizado, como veremos mais a frente;
+
+* Script inicial: é a primeira task executada. Normalmente faz várias chamadas de APIs que mantém o software rodando.
+
+Existem outros conceitos como Microtasks, as várias fases do ciclo de vida do Node.js e a diferenciação entre `setTimeout()`, `setImmediate()`, `queueMicrotask()` e `process.nextTick()` que não estão sendo abordados aqui.
+
+Mas e se eu precisar de threads? É possível, utilizando `worker_threads`. Note que dificilmente você vai precisar disso:
+
+```js
+const { Worker, isMainThread } = require('worker_threads');
+
+if (isMainThread) {
+  new Worker(__filename);
+  new Worker(__filename);
+  new Worker(__filename);
+  new Worker(__filename);
+} else {
+  console.log('worker...');
+  for (let i = 0; i < 10000000000; i++) {};
+}
+
+//for (let i = 0; i < 10000000000; i++) {};
+```
+
+Proposta de exercício: desenvolva um script node que receba um número inteiro via linha de comando (dica: `process.argv[2]`), e imprima a soma dos números entre 1 e uma constante arbitrariamente grande (ex: 10000). Note que diferentemente do exemplo acima será necessário passar dados para os workers e receber mensagens de retorno. Para o primeiro basta mandar um `workerData` na chamada `new Worker`, e para o segundo é necessário usar `parentPort.postMessage`. Detalhes podem ser obtidos na documentação do Node: https://nodejs.org/api/worker_threads.html.
+
+## A linguagem Javascript
+
+Além do conhecimento sobre Event Loop, é importante ter uma boa base na linguagem Javascript para ser efetivo no desenvolvimento de APIs com Node.js.
+
+Javascript é uma linguagem de tipagem dinâmica (no sentido de que a checagem de tipos acontece em execução) e fraca (no sentido de que você pode por exemplo somar um número com uma string e não será impedido).
+
+### Tipos primitivos
+
+O Javascript possui os seguintes tipos primitivos:
+
+```js
+let a = true; // boolean
+console.log(typeof a);
+a = null; // "null" é um tipo
+console.log(typeof a); // o operador typeof retorna "object" pois Javascript é assim: https://stackoverflow.com/questions/18808226/why-is-typeof-null-object
+a = undefined;
+console.log(typeof a);
+a = 123; // números
+console.log(typeof a);
+a = 123.45; // ainda números
+console.log(typeof a);
+a = 123.111111111222222223333333; // ainda números
+console.log(typeof a);
+a = +Infinity; // ainda números
+console.log(typeof a);
+a = -Infinity; // ainda números
+console.log(typeof a);
+a = NaN; // ainda números
+console.log(typeof a);
+a = 5n; // bigints
+console.log(typeof a);
+a = 5n; // bigints
+console.log(typeof a);
+a = '123';
+console.log(typeof a); // strings
+a = Symbol('abc');
+console.log(typeof a); // símbolos (são diferentes de símbolos em linguagens como Ruby!)
+```
+
+### "Objetos"
+
+Também existem estruturas mais complexas:
+
+```js
+let x = { a: 1 }; // objetos
+x["b"] = 2;
+x.c = 3;
+console.log(typeof x, x.a + x.b + x["c"]);
+
+x = function (a) { return a * 2; }
+x.b = 10;
+console.log(typeof x, x(5) + x.b); // funções (que também são objetos!)
+
+x = new Date();
+console.log(typeof x, x); // datas, ficamos no aguardo da especificação do Temporal: https://tc39.es/proposal-temporal/docs/index.html
+
+x = [ 20, 1, 40, 3, 5 ];
+console.log(typeof x, x); // arrays
+x.sort();
+console.log(x);
+x = [ true, "1", -Infinity, [ 2, 3, "oi" ], "abc" ];
+x.sort();
+console.log(x);
+x.push(Symbol("já é demais"));
+x.sort();
+
+// esse aqui precisa rodar no repl do Node.js
+// 0000001000000110 (2 e 6 unsigned ints esquerda pra direita)
+x = Buffer.from("AgY=", "base64");
+console.log(typeof x);
+x = Uint8Array.of(2, 6);
+console.log(typeof x);
+```
+
+### Estruturas condicionais e iteradores
+
+```js
+let x = 5;
+if (x < Infinity) {
+  console.log('tudo certo com essa implementação javascript');
+}
+
+x = [ "a", "b", "c" ];
+for (let i = 0; i < x.length; i++) {
+  console.log(i, x[i]);
+}
+for (let i in x) { // i aqui é STRING!!!!
+  console.log(i, x[i]);
+}
+for (let i in x) { // i aqui é STRING!!!! https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/for...in#array_iteration_and_for...in
+  console.log(i, x[i]);
+}
+for (let n of x) {
+  console.log(n);
+}
+let i = 0;
+while (i < x.length) {
+  console.log(x[i]);
+  i++;
+}
+```
+
+### Funções e geradores
+
+```js
+function somar (a, b) {
+  return a + b;
+}
+console.log(somar(2, 3));
+
+let subtrair = function (a, b) {
+  return a - b;
+};
+console.log(subtrair(5, 3));
+console.log(subtrair.apply(null, [ 10, 3 ]));
+console.log(subtrair.call(null, 10, 3));
+
+const somar5 = somar.bind(null, 5); // currying "with extra steps" (mudança de contexto)
+console.log(somar5(3));
+
+const somar10 = function (b) {
+  return somar(10, b);
+};
+console.log(somar10(5));
+
+const debitoTecnico = function () {
+  let i = 1;
+  return function () { // closures: // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Closures#closure
+    return i++;
+  };
+};
+x = debitoTecnico();
+console.log(x(), x(), x());
+
+function* pares () { // geradores
+  let n = 2;
+  while (true) {
+    yield n;
+    n = n + 2;
+  }
+}
+x = pares();
+console.log(x.next(), x.next(), x.next());
+```
+
+Proposta de exercício: implemente as seguintes funções:
+
+- `repetir<T>(vezes: number, elemento: T): T[]`
+- `repetir10<T>(elemento: T): T[]`
+- `*repetirInfinitamente<T>(elemento: T): generator<T>`
+- `*intercalarInfinitamente<T>(e1: T, e2: T): generator<T>`
+
+### Hoisting e modo estrito
+
+No Javascript as variáveis declaradas com `var` tem sua declaração (mas não sua inicialização) movida para o topo do escopo em que estão definidas! Veja:
+
+```js
+function hoisting () {
+
+  n1 = 5;
+
+  var n2 = 10;
+
+  n3 = 20;
+  var n3;
+
+  console.log(n1, n2, n3);
+
+}
+hoisting();
+console.log(n1);
+// console.log(n2, n3) <<< não funciona
+```
+
+Uma maneira de se proteger dessa situação é habilitar o modo estrito do Javascript, colocando a expressão literal `"use strict";` no começo do arquivo ou da função que quer proteger:
+
+```js
+"use strict";
+function naoVaiFuncionar () {
+  acidentalmenteGlobal = 10;
+}
+naoVaiFuncionar();
+```
+
+O modo estrito habilita uma série de outras proteções, e é o modo recomendável para se escrever novas bases de código JS.
+
+### This, globalThis, thisThis, that, (...)
+
+Caso você conheça orientação a objetos, vai reconhecer a palavra `this` (ou `self`) como uma referência para a instância que está recebendo a chamada (ou mensagem). Esse conceito é bem mais complicado no Javascript. Além disso há diferença no modo estrito discutido na seção anterior.
+
+Para começar a entender a palavra reservada `this`, veja o que ela representa no escopo global:
+
+```js
+console.log(this);
+```
+
+No navegador isso vai imprimir o objeto `window`, enquanto no Node isso vai imprimir um objeto do tipo `[global]`. Daqui pra frente chamaremos esse objeto de contexto global.
+
+Veja o bloco abaixo que demonstra o `this` dentro de uma chamada de função:
+
+```js
+function thisEmFuncao () {
+  console.log(this);
+}
+thisEmFuncao();
+```
+
+Repare que o `this` aqui também é o contexto global. Sendo mais específico, ele foi *herdado* no momento da chamada. Esse conceito é importante para entender o restante dos casos.
+
+Se habilitarmos o modo estrito, o `this` passa a ser `undefined` neste caso:
+
+```js
+function thisEmFuncaoEstrita () {
+  "use strict";
+  console.log(this);
+}
+thisEmFuncaoEstrita();
+```
+
+Quando então o `this` faz referência para outros valores? Uma das maneiras de atingir isso é chamar uma função *a partir de um objeto*:
+
+```js
+const pessoa = {
+  nome: "Alguém",
+  dizerOi: function () {
+    console.log(this.nome);
+  }
+};
+pessoa.dizerOi();
+```
+
+Neste ponto é bem natural confundir o `this` com o operador de linguagens focadas em orientação a objetos. Mas veja o que acontece neste caso:
+
+```js
+const pessoa = [...]
+const referenciaParaDizerOi = pessoa.dizerOi;
+referenciaParaDizerOi();
+```
+
+E podemos piorar:
+
+```js
+const robo = {
+  nome: "T1025B",
+  x: referenciaParaDizerOi
+};
+robo.x();
+```
+
+É evidente que esse código representa uma boa coleção de más práticas de desenvolvimento, mas compreender que é possível e o que está acontecendo ali é essencial para efetuar qualquer tipo de manutenção em Javascript.
+
+Em alguns casos (quem conhece `React` antes dos `hooks` vai entender) queremos fixar o `this` em uma função para impedir que seu contexto varie independente da forma como foi chamada. Para isso é possível usar a chamada `bind`:
+
+```js
+function dizerOi () {
+  console.log(this.nome);
+}
+
+const pessoa2 = { nome: "Alguém" };
+pessoa2.dizerOi = dizerOi.bind(pessoa2);
+
+pessoa2.dizerOi();
+
+const referenciaParaDizerOiPessoa2 = pessoa2.dizerOi;
+referenciaParaDizerOiPessoa2();
+```
+
+Neste ponto é possível explicar o resto do título da seção: `thisThis` e `that` são alguns dos nomes usados para criar variáveis que mantém referência para diferentes contextos de execução em cadeis complexas de callbacks. Normalmente indica problemas no design do código.
+
+Além da função `bind`, as funções possuem também a `apply` e a `call`, que permitem passar um contexto de modo explícito para a chamada (note que só vai funcionar para funções que não possuem um contexto fixado anteriormente via `bind`):
+
+```js
+function somar (b, c) {
+  console.log(this.a + b + c);
+}
+somar.apply({ a: 1 }, [ 2, 3 ]);
+somar.call({ a: 1 }, 2, 3);
+const somarFixado = somar.bind({ a: 5 });
+somarFixado.call({ a: 1 }, 0, 0);
+```
+
+### Operador "new"
+
+Para entender o operador `new`, vamos fazer exatamente o que ele faz, só que manualmente:
+
+```js
+function Pessoa (nome) {
+  this.nome = nome;
+}
+Pessoa.prototype.dizerOi = function () {
+  console.log(this.nome);
+};
+
+const pessoa = Object.create(Pessoa.prototype);
+// uma alternativa para a linha acima seria:
+// const pessoa = {};
+// pessoa.__proto__ = Pessoa.prototype;
+
+Pessoa.call(pessoa, "Alguém"); // aqui tem uma pequena variação
+
+pessoa.dizerOi();
+```
+
+E agora magicamente com esse operador:
+
+```js
+const pessoa2 = new Pessoa("Alguém 2");
+pessoa2.dizerOi();
+```
+
+Por tabela nós vimos também como funciona a hierarquia via protótipos.
+
+### Arrow functions
+
+Um observador atento vai reparar que até o momento não utilizamos nenhuma vez a sintaxe de arrow functions! Isso é de propósito, pois só agora temos o conhecimento necessário para defini-las! Arrow functions são funções que *herdam o contexto de execução* do lugar onde foram definidas, e não do lugar onde foram chamadas! Essa diferença é muito importante e útil. Veja:
+
+```js
+function Pessoa (nome, idade) {
+  this.nome = nome;
+  this.idade = idade;
+}
+// Pessoa.prototype.construirSomadorDeIdade = () => { // não vai funcionar aqui
+Pessoa.prototype.construirSomadorDeIdade = function () {
+  // const thisThis = this; // não faça isso
+  // return function (x) {
+  //   return thisThis.idade + x;
+  // };
+  return x => this.idade + x; // o this dessa função sempre vai ser o mesmo this do local onde ela foi definida, não importa como é chamada
+}
+
+const pessoa = new Pessoa('Alguém', 20);
+const somarComIdade = pessoa.construirSomadorDeIdade();
+console.log(somarComIdade(5));
+```
+
+### Classes
+
+No Javascript moderno (nem tão moderno assim) foi introduzido uma syntax sugar para definição de funções com protótipo, através da palavra-chave `class`:
+
+```js
+class Pessoa {
+  constructor (nome, idade) {
+    this.nome = nome;
+    this.idade = idade;
+  }
+
+  construirSomadorDeIdade() {
+    return x => this.idade + x;
+    // return function (x) { // vai apresentar o mesmo problema do anterior
+    //   return this.idade + x;
+    // }
+  }
+
+  dizerOi() {
+    console.log(this.nome);
+  }
+}
+
+const pessoa = new Pessoa("Alguém 3", 30);
+pessoa.dizerOi();
+console.log(pessoa.construirSomadorDeIdade()(5));
+```
+
+Proposta de exercício: implementar, usando prototypes e classes, a seguinte estrutura:
+
+- Conta bancária: atributo `saldo` inicializado pelo construtor, função `sacar` (não é necessário tratar se existe saldo).
+- Conta investimento: estende a `Conta bancária` recebendo um atributo adicional chamado `rendimentoMensal`. Ganha um método `virarMes` que aplica a taxa de rendimento no saldo atual.
+
+Dicas: use a função `Object.setPrototypeOf(B.prototype, A.prototype)` para simular o `extends`. Use `B.call(this, param1, param2)` para simular o `super(param1, param2)`.
+
+### Datas
+
+Em algum momento (e nesta disciplina não será diferente) sempre temos que lidar com datas. Javascript tem uma fama complicada com isso, por conta das falhas de design no tipo builtin `Date`, normalmente envolvendo a falta de utilitários na API e a dificuldade de lidar com timezones. Veja:
+
+```js
+const agora = new Date();
+console.log(agora.toISOString());
+console.log(agora.getTime());
+console.log(agora.getTimezoneOffset());
+// não existe conhecimento no objeto Date sobre timezones
+```
+
+Uma alternativa muito boa para trabalhar com Timezones é a biblioteca `date-fns-tz`. Cuidado com `moment-timezone`, pois ela traz no bundle os dados e isso aumenta bastante o tamanho da página!
+
+### Errors (throw/catch/finally)
+
+Erros vão acontecer em qualquer sistema não trivial. Esses erros possuem diversas categorias:
+
+- Semântica inválida (lógica causando uma situação irrecuperável): no Javascript praticamente a única maneira disso acontecer é acessar um método que não existe em um objeto ou tentar acessar algo em uma referência para `null` ou `undefined`.
+
+- Falha em rotina assíncrona (comunicação): dispositivo offline, resposta do servidor diferente do esperado. Note que pode uma resposta diferente do "fluxo feliz" não deve ser considerada como erro na definição que está sendo proposta aqui.
+
+- Funcionalidade: não é um erro que "quebra" o software, mas sim um erro de código que produz um resultado diferente do esperado pelo usuário. Se não for um problema muito crítico esse tipo de erro tende a ficar muito tempo escondido pois, por fundamento, é impossível identificá-lo de forma proativa.
+
+Toda linguagem possui mecanismos e boas práticas para lidar com situações excepcionais. No caso do Javascript esse mecanismo é o lançamento e captura de erros, também chamado de exceções em outras linguagens. Veja:
+
+```js
+class Pessoa {
+  constructor (idade) {
+    this.idade = idade;
+  }
+
+  isMaiorDeIdade() {
+    return this.idade >= 18;
+  }
+}
+
+const pessoa = new Pessoa(-10);
+console.log(pessoa.idade, pessoa.isMaiorDeIdade());
+```
+
+É interessante permitir que essa situação (idade negativa) se alastre causando problemas em outros pontos do código ou dos dados dos sistemas? Provavelmente não, e uma das vantagens de trabalhar com exceções é ter uma codificação mais defensiva:
+
+```js
+class Pessoa {
+  constructor (idade) {
+    if (idade < 0) {
+      throw new Error("idade < 0");
     }
-  </script>
-  <button onclick="buscar()">Buscar</button>
-  <pre id="resultado"></pre>
-</body>
-</html>
+    this.idade = idade;
+  }
+
+  isMaiorDeIdade() {
+    return this.idade >= 18;
+  }
+}
+
+const pessoa = new Pessoa(-10);
+console.log(pessoa.idade, pessoa.isMaiorDeIdade());
 ```
 
-## Node.js
-
-Agora que a revisão foi feita, é possível olhar para o Node.js e entender onde ele se propõe a trabalhar. Considere a definição no próprio site da ferramenta:
-
-> Node.js® is a JavaScript runtime built on Chrome's V8 JavaScript engine.
-
-Basicamente o que isso quer dizer é: uma camada sobre um motor de execução de JavaScript muito poderoso (V8), permitindo o desenvolvimento de aplicações que não executam no contexto de um navegador.
-
-### Instalação
-
-O primeiro passo para o aprendizado do Node.js é a instalação da ferramenta. Como isso varia muito dependendo do sistema operacional, a única coisa que será feita aqui é o apontamento para a página de download: https://nodejs.org/en/download/. Note que virtualmente todas as distribuições Linux possuem o Node.js em seu gestor de pacotes.
-
-Para verificar se você já possui uma instalação, ou se a que acabou de fazer deu certo, abra um terminal e execute o seguinte comando:
-
-```
-node -v
-```
-
-Se o comando retornar um número de versão, sem falha, significa que deu certo. Garanta que você possui a versão 12 ou superior para evitar problemas no decorrer da disciplina.
-
-### Node Version Manager (NVM)
-
-Do mesmo modo que ocorre em outras linguagens, pode ser que você se encontre em uma situação onde precise ter várias versões do Node na máquina, uma para cada projeto em que está trabalhando. Neste tipo de situação é comum ouvir o termo "ambiente virtual" (virtual environment). No caso do Node, uma das ferramentas que auxilia na gestão de ambientes virtuais é o `nvm` (https://github.com/nvm-sh/nvm).
-
-Note que o SO Windows não é suportado por essa ferramenta, então a instalação raíz deverá ser usada durante a disciplina, ou deverá ser efetuada a instalação de uma alternativa como o `nvm-windows` (https://github.com/coreybutler/nvm-windows).
-
-Para instalar a distribuição mais recente, use o comando `nvm install node`. Para instalar a distribuição LTS mais recente, use `nvm install lts/*`. Para listar as instalações disponíveis na máquina, use `nvm ls`. Para selecionar uma instalação específica, use `nvm use <versão>`.
-
-### Primeiro script Node.js
-
-Para executar um script usando o ambiente de execução do Node.js, basta abrir um terminal e usar o seguinte comando:
-
-```
-node arquivo.js
-```
-
-Onde `arquivo.js` é o script que deseja executar. Faça um teste com o seguinte código de exemplo:
+Melhorou, mas ainda vai ocorrer um problema similar se passar outros tipos de dado que não um número:
 
 ```js
-console.log(1 + 2);
+const pessoa2 = new Pessoa(true);
+console.log(pessoa2.idade, pessoa2.isMaiorDeIdade());
 ```
 
-Salve o texto acima em um arquivo e execute-o. A saída deve ser algo parecido com isso:
-
-```
-$ node arquivo.js
-3
-```
-
-Note que, no decorrer deste material, linhas iniciadas com `$` significam um comando digitado no terminal, enquanto as outras linhas significam a saída desses comandos.
-
-Modifique agora o arquivo com o código abaixo, um pouco mais complicado, incluindo leitura de dados do usuário:
+Para evitar é possível checar se o parâmetro é do tipo certo (cuidado):
 
 ```js
-const readline = require('readline');
-
-const reader = readline.createInterface(process.stdin, process.stdout);
-reader.question('Seu nome: ', nome => {
-    console.log(`Olá, ${nome}!`);
-});
-reader.addListener("line", linha => {
-    if (linha.toLowerCase() === 'sair') {
-        reader.close();
+class Pessoa {
+  constructor (idade) {
+    if (typeof idade !== "number") {
+      throw new TypeError("idade não é número");
     }
+    if (idade < 0) {
+      throw new Error("idade < 0");
+    }
+    this.idade = idade;
+  }
+
+  isMaiorDeIdade() {
+    return this.idade >= 18;
+  }
+}
+
+const pessoa = new Pessoa(-10);
+console.log(pessoa.idade, pessoa.isMaiorDeIdade());
+```
+
+Argumentadores argumentarão que desenvolver dessa forma joga fora todo o benefício de legibilidade de uma linguagem dinâmica. Outros argumentadores argumentarão que o benefício de segurança e manutenabilidade é muito mais importante. Escolha um lado e boa discussão. Linguagens que tipam estaticamente possuem o benefício dessa checagem sem ter que escrever condicionais, já que garantem tudo isso em tempo de compilação. Esse é um dos, senão o principal, motivos de sucesso do Typescript.
+
+Como evitar que esses erros propagem até o console, acarretando em confusão para o usuário do software? Para isso é necessário utilizar o esquema de `try/catch/finally`, bem similar ao presente em outras linguagens:
+
+```js
+try {
+  const idade = 10;
+  new Pessoa(idade);
+  console.log("Sucesso!");
+} catch (err) {
+  console.log("Falha!");
+  console.error(err);
+  // garantir que o usuário veja o que ocorreu e possa reagir
+  // isso pode significar a necessidade de criar estruturas de atributos
+  // nos erros
+} finally {
+  console.log("Isso aqui vai executar sempre.");
+}
+```
+
+Proposta de exercício: implemente uma página HTML com dois campos, e um botão para somá-los. Apresente uma mensagem de erro caso não seja possível efetuar a soma pelos seguintes motivos:
+
+- Um ou os dois campos estão vazios;
+- Número inválido.
+
+Dica: coloque o código na própria tag script, para facilitar.
+
+### Promises
+
+Observe este código desenvolvido anteriormente:
+
+```js
+function buscarCep() {
+  const cep = document.getElementById('cep').value;
+  fetch(`https://viacep.com.br/ws/${cep}/json/`)
+    .then(function (resp) {
+      return resp.json();
+    })
+    .then(function (dados) {
+      document.getElementById('resultado').innerText = dados['logradouro'];
+    })
+    .catch(function (err) {
+      document.getElementById('resultado').innerText = `Não foi possível carregar: ${err.message}`;
+    });
+}
+```
+
+Por qual motivo ele não pode ser desenvolvido dessa forma?
+
+```js
+function buscarCep() {
+  try {
+    const cep = document.getElementById('cep').value;
+    const resp = fetch(`https://viacep.com.br/ws/${cep}/json/`);
+    const dados = resp.json();
+    document.getElementById('resultado').innerText = dados['logradouro'];
+  } catch (err) {
+    document.getElementById('resultado').innerText = `Não foi possível carregar: ${err.message}`;
+  }
+}
+```
+
+Afinal é isso que esperaríamos ver em outras linguagens. Uma parte dessa resposta é: Event Loop. Para evitar bloquear sua aplicação toda esperando a resposta da requisição HTTP (lembre-se que javascript é single thread) precisa ter uma fronteira explícita entre um bloco de execução síncrona e outro. A solução adotada inicialmente no Javascript foi simplesmente passar funções de `callback` para chamadas de Web APIs, de modo que essa função seria chamada apenas quando apropriado, liberando a thread principal para executar outros blocos. Isso pode ser visto ainda hoje no `setTimeout`:
+
+```js
+function callback() {
+  console.log('isso aqui está rodando em um segundo momento');
+}
+setTimeout(callback, 1000);
+```
+
+Conforme os callbacks foram se tornando parte fundamental do desenvolvimento Javascript, a necessidade de simplificar casos mais complexos ficou evidente. Veja:
+
+```js
+buscarDadosDeCep(cep, function (dadosDoCep) {
+  buscarEstimativaDeFrete(dadosDoCep.centroDeDistribuicao, function (estimativa) {
+    // caso de sucesso aqui
+  }, function (err) {
+    // tratamento aqui
+  });
+}, function (err) {
+  // tratamento aqui
 });
 ```
 
-Pontos interessantes para observar no código acima:
-
-- Importação de módulo usando a função `require`. O pacote `readline` é um pacote nativo do Node.js que permite interação facilitada com o usuário através da linha de comando.
-- Uso do método `question`, passando um `callback`, para implementar a interação com o usuário.
-- Uso do método `addListener`, para verificar se o usuário digitou o termo `sair`, e em caso positivo desligar o leitor, efetivamente encerrando o processo.
-
-Por qual motivo esse último passo foi necessário? Como discutido nas seções anteriores, o Node.js é construído sobre o motor de execução V8, que por sua vez implementa um looping de eventos. A partir do momento em que o leitor de dados da interface é criado, ele impede que a aplicação encerre após o término do script, pois ele é uma fonte de eventos desse loop. Em outras palavras, enquanto o leitor não for fechado manualmente, ou o método `process.exit(status)` for chamado, o processo não será encerrado e segurará o terminal do usuário.
-
-### Debugging
-
-Uma ferramenta muito importante para se ter enquanto desenvolvedor de software é um bom método de *debugging*. No caso do Node.js, existem várias disponíveis:
-
-- Manualmente, usando `node inspect` ao invés de simplesmente `node` para executar o script. Obviamente essa opção é péssima em termos de usabilidade.
-
-- Acessar a URL `chrome://inspect` no navegador Chrome e anexar a um processo `node` iniciado com a flag `--inspect`, ex: `node --inspect arquivo.js`.
-
-- Iniciar o processo por dentro de uma IDE com suporte ao modo de debug. O Visual Studio Code é um exemplo: habilite a configuração *Debug > Node: Auto Attach*, abra um terminal integrado, e inicie o script com a flag `--inspect` normalmente.
-
-### Módulos
-
-Virtualmente todas as linguagens de programação oferecem alguma maneira de divisão de código em *partes*. Algumas chamam-as de *pacotes*, outras de *módulos*, etc.
-
-O JavaScript puro não oferecia esse conceito, mas conforme a sua evolução essa capacidade foi incorporada, e hoje faz parte da especificação da linguagem (ES6+) [1].
-
-Note que também existe um gestor de dependências/pacotes para Node.js, chamado `npm`, mas este não será apresentado por enquanto.
-
-Considere o seguinte código:
+Rapidamente isso fica difícil de ler, e a "solução" acaba com a ordem completamente invertida do código com o que de fato acontece:
 
 ```js
-const a = 3;
-const b = 10;
-console.log(a + b);
+function onEstimativaDeFreteSuccess (estimativa) {
+
+}
+function onEstimativaDeFreteErr (err) {}
+function onDadosDoCepSuccess (dadosDoCep) {
+  buscarEstimativaDeFrete(dadosDoCep.centroDeDistribuicao, onEstimativaDeFreteSuccess, onEstimativaDeFreteErr);
+}
+function onDadosDoCepErr (err) {}
+
+buscarDadosDeCep(cep, onDadosDoCepSuccess, onDadosDoCepErr);
 ```
 
-`a + b` aqui representa uma potencial operação de negócio, que eventualmente será reutilizada em outros pontos do projeto. Quando isso acontecer, como fazer para evitar a duplicação do código? Comece criando um outro arquivo, chamado `soma.js`, com o seguinte código:
+Certamente é complicado ler, comparando com o algoritmo síncrono que propomos no início.
+
+A primeira melhoria nessa questão veio com a introdução do conceito de promessas (Promises). Uma promessa tenta criar um canal superior onde os dados vão caminhando até o destino final, sem acabar com callbacks aninhados. Veja:
+
+```js
+buscarDadosDeCep(cep)
+  .then(dadosDoCep => buscarEstimativaDeFrete(dadosDoCep.centroDeDistribuicao))
+  .then(estimativa => {}) // para ter acesso aos dadosDoCep aqui um pouco de trabalho extra é necessário
+  .catch(err => {}); // note que este tratamento é único para os dois casos de falha
+```
+
+Toda estrutura de callbacks pode ser encapsulada em uma promise, veja por exemplo como seria isso com a função `setTimeout`:
+
+```js
+function aguardarSegundos (segundos) {
+  return new Promise(function (resolve, _reject) {
+    setTimeout(resolve, segundos * 1000);
+  });
+}
+
+aguardarSegundos(5).then(() => console.log("terminou"));
+```
+
+Esse processo é chamado de "promessificação" (promisify) e o Node possui inclusive um utilitário para fazer isso automaticamente, caso a função que usa callbacks siga algumas regras básicas: https://nodejs.org/dist/latest-v8.x/docs/api/util.html.
+
+Proposta de exercício: faça uma "callbackzação" (o contrário de promessificação) do método `fetch` no exercício que busca os dados de conversão de moeda (ou no exemplo que busca dados de CEP). A assinatura deve ficar assim: `fetchComCallback(url, callback)`. Callback é uma função que recebe dois parâmetros, o primeiro é o erro (ou `undefined`) e o segundo é o retorno esperado (caso de sucesso);
+
+### Async/await
+
+E se você pudesse escrever exatamente aquele código síncrono, sem perder o comportamento assíncrono e toda a simplicidade do desenvolvimento single-thread? Isso é na verdade possível desde o surgimento das cláusulas `async` e `await`.
+
+Para entender essa sintaxe podemos começar aplicando a cláusula `async` em uma função. Veja o que acontece com seu retorno:
+
+```js
+function getNumeroAleatorio () {
+  return Math.ceil(Math.random() * 10);
+}
+console.log(getNumeroAleatorio());
+async function getNumeroAleatorio2 () {
+  return Math.ceil(Math.random() * 10);
+}
+const promise = getNumeroAleatorio2();
+console.log(promise);
+promise.then(console.log);
+```
+
+Veja que definir uma função como assíncrona automaticamente muda seu retorno para uma Promise, mesmo se o corpo for síncrono! Quando isso é útil? Quando combinada com a palavra-chave `await`, é possível escrever cadeias de chamadas assíncronas de modo muito mais legível, veja:
+
+```js
+async function buscarLogradouro(cep) {
+  const resp = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+  const json = await resp.json();
+  return json['logradouro'];
+}
+```
+
+Note que você só pode usar await se já estiver em um contexto async (caso contrário a stack estaria potencialmente esperando uma resposta síncrona).
+
+Um outro benefício é o suporte do `try/catch` em contextos async: erros tanto na parte síncrona quanto identificados durante a resolução das promessas vão cair no catch:
+
+```js
+async function buscarLogradouro(cep) {
+  try {
+    const resp = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+    const json = await resp.json();
+    return json['logradouro'];
+  } catch (err) {
+    console.warn(err);
+    return '-'; // dificilmente é o que você quer, mas serve para exemplificar
+  }
+}
+```
+
+Para facilitar a compreensão vale reforçar que todo método assíncrono pode ser reescrito com promises (e vice-versa). Veja:
+
+```js
+function buscarLogradouro(cep) {
+  return fetch(`https://viacep.com.br/ws/${cep}/json/`)
+    .then(resp => resp.json())
+    .then(json => json['logradouro'])
+    .catch(err => {
+      console.warn(err);
+      return "-";
+    });
+}
+```
+
+Note que a cláusula `await` pode ser utilizada em métodos que retornam `Promise`, eles não precisam necessariamente ser `async`.
+
+Proposta de exercício: faça um método que aguarda 3 segundos, gera um número aleatório entre 0 e 10, e repete até que o número aleatório seja >= 8, retornando (através da promessa de retorno principal) a soma dos valores gerados nas etapas intermediárias. Dica: use async/await na versão promessificada do `setTimeout`. A utilização deve ficar parecida com isso:
+
+```js
+const res = await gerarEnquantoMenor8();
+console.log(res); // num cenário onde os números foram 3, 6, 4 e 9 o res é 13
+
+gerarEnquantoMenor8().then(console.log); // também deve ser possível assim
+```
+
+Observe como é consideravelmente mais difícil ler a solução sem a sintaxe async/await.
+
+## Geradores async
+
+É possível também definir geradores assíncronos. Veja:
+
+```js
+function aguardarSegundos (segundos) {
+  return new Promise(function (resolve, _reject) {
+    setTimeout(resolve, segundos * 1000);
+  });
+}
+
+async function* gerarInfinitamente (valorMaximo) {
+  while (true) {
+    await aguardarSegundos(3);
+    yield Math.ceil(Math.random() * valorMaximo);
+  }
+}
+```
+
+## Módulos (import/export)
+
+Voltando as atenções agora ao Node.js, como dividir o código-fonte em vários arquivos ou "módulos"? Algumas linguagens chamam de pacote, outras de namespace, mas o objetivo é sempre o mesmo: criar um mecanismo que permita o aparecimento de um ecossistema de bibliotecas e que também facilite a manutenção da base de código conforme ele cresce.
+
+Módulos são importados através da chamada `require` (ou da sintaxe `import` como veremos em breve). No código que fizemos de exemplo de back-end fizemos a importação do módulo `http`.
+
+Para definir um módulo basta criar um arquivo com o nome desejado, ou um diretório com um arquivo `index.js` dentro. Esses arquivos possuem um objeto especial chamado `module.exports` que, se definido, transforma o arquivo ou pastas em um módulo importável. Com a opção de módulos ES6 é possível usar também a sintaxe `export`. Veja um exemplo:
+
+Arquivo `calculadora/somar.js`:
 
 ```js
 module.exports = function (a, b) {
   return a + b;
-};
+}
 ```
 
-E ajuste o arquivo anterior:
+Arquivo `calculadora/index.js`:
 
 ```js
-const soma = require('./soma');
+const somar = require('./somar');
 
-const a = 3;
-const b = 10;
-console.log(soma(a, b));
+module.exports = { somar };
 ```
 
-Repare que desse modo, um único objeto (seja ele um valor, uma função, uma classe, etc.) é exportado pelo módulo. Também é possível exportar vários elementos. Crie um arquivo `operacoes.js` com o seguinte código:
+Arquivo `app.js`:
 
 ```js
-module.exports.PI = 3.1415;
+const calculadora = require('./calculadora');
 
-module.exports.soma = function (a, b) {
-    return a + b;
-};
-
-module.exports.sub = function (a, b) {
-    return a - b;
-};
-
-module.exports.mult = function (a, b) {
-    return a * b;
-};
-
-module.exports.div = function (a, b) {
-    return a / b;
-};
+console.log(calculadora.somar(3, 5));
 ```
 
-E adicione o seguinte código no script original:
+Agora com ES6:
 
 ```js
-const operacoes = require('./operacoes');
-console.log(operacoes.PI * 2);
-console.log(operacoes.soma(10, 3));
-console.log(operacoes.sub(10, 3));
-console.log(operacoes.mult(10, 3));
-console.log(operacoes.div(10, 3));
-```
-
-Para os familiarizados com Angular e TypeScript (que permitem o uso da sintaxe de módulos do ES6), o equivalente em um projeto com essas tecnologias seria:
-
-```js
-// soma.js
 export default function (a, b) {
   return a + b;
 }
 ```
 
+Arquivo `calculadora/index.js`:
+
 ```js
-// operacoes.js
-export const PI = 3.1415;
-export function soma(a, b) {
-  return a + b;
+export { default as somar } from './somar';
+```
+
+Arquivo `app.js`:
+
+```js
+import { somar } from './calculadora'; // o "explode" pode ser feito na versão sem ES6 também, usando "require" (CommonJS).
+
+console.log(somar(3, 5));
+```
+
+Note que o uso de export/import só saiu do status experimental no Node.js 14.
+
+## Juntando tudo isso (projeto de exemplo e exercício)
+
+Para encerrar esse processo todo vamos implementar um projeto com as seguintes funcionalidades:
+
+- Ler um arquivo do disco com milhares de números aleatórios;
+- Distribuir esse arquivo para uma série de processos filhos (em modo cluster, diferente do modo thread);
+- Calcular a quantidade de números pares;
+- Somar os resultados e imprimir no final.
+
+Com isso veremos o uso de dois módulos novos: `cluster` e `fs`, poderemos analisar novamente como isso impacta no aproveitamento de hardware em operações intensivas de CPU. Poderemos por fim comparar como essa estratégia é útil para servidores HTTP.
+
+O primeiro passo é gerar e armazenar um arquivo com muitas palavras aleatórias. Crie uma pasta específica para o projeto, e dentro dela crie um arquivo `package.json` (veremos detalhes na próxima seção) com o seguinte conteúdo:
+
+```json
+{
+  "type": "module"
 }
-export function sub(a, b) {
-  return a - b;
-}
-[...]
 ```
 
-```js
-// script.js
-import soma from './soma.js';
-import * as operacoes from './operacoes.js';
-import { PI, soma, sub } from './operacoes.js'; // preferível
-[...]
-```
-
-Infelizmente a sintaxe de módulos do ES6 ainda é experimental no Node.js, portanto seu uso ainda não é apropriado [2].
-
-[1] https://medium.com/sungthecoder/javascript-module-module-loader-module-bundler-es6-module-confused-yet-6343510e7bde.
-
-[2] https://nodejs.org/api/esm.html#esm_introduction
-
-### Sistema de arquivos
-
-Uma das melhores maneiras de aprender uma nova linguagem é aplicando conceitos já conhecidos em outras, e comparar as soluções obtidas.
-
-Um desses conceitos bem comuns é a manipulação do sistema de arquivos. O Node.js fornece uma API para isso [1], evidentemente. Veja o exemplo abaixo de leitura de um arquivo:
+E então implemente a ferramenta no arquivo `gerador.js`:
 
 ```js
-const fs = require('fs');
+import { open } from 'fs/promises';
 
-const data = fs.readFileSync('lorem.txt');
-console.log(data);
-```
 
-Repare que o retorno é um objeto do tipo `Buffer`. Isso ocorre pois o Node.js não assume que o arquivo contém texto. É possível obter texto (`string`) de duas formas:
-
-1. Chamando o método `toString` passando a codificação correta:
-  ```js
-  console.log(data.toString('UTF-8'));
-  ```
-2. Passando a codificação diretamente na chamada do método `readFileSync`:
-  ```js
-  const data = fs.readFileSync('lorem.txt', {
-      encoding: 'UTF-8'
-  });
-  console.log(data);
-  ```
-
-Note que essas operações são síncronas, e como já discutido, o Node.js executa em uma única thread sobre um loop de eventos. Basicamente o que isso significa é que se o arquivo lido for muito grande, o processo (sua aplicação) inteira vai ficar parada aguardando o carregamento dos dados.
-
-Isso é definitivamente uma situação indesejada, e é esperado de todo programador Node.js o conhecimento das APIs assíncronas (elas existem para todos os lados) equivalentes e um bom julgamento na hora de escolher qual usar (a API assíncrona prioriza a performance, enquanto a API síncrona prioriza a simplicidade do código). Veja como fica o exemplo acima usando a API assíncrona:
-
-```js
-const options = { encoding: 'UTF-8' };
-const callback = (err, data) => {
-    if (err) throw err;
-    console.log(data);
-};
-fs.readFile('lorem.txt', options, callback);
-console.log('A leitura ainda não ocorreu');
-```
-
-Assim que o método `readFile` é chamado, a execução continua, e quando os dados estiverem prontos (ou um erro for identificado) o loop de eventos vai chamar a função passada como callback para que o processamento continue.
-
-Não é difícil perceber que a codificação assíncrona fica rapidamente complexa de entender. Considere o seguinte código, que primeiro lê o conteúdo de um arquivo, depois pergunta uma informação ao usuário, depois adiciona essa informação no arquivo:
-
-```js
-const fs = require('fs');
-const readline = require('readline');
-
-const reader = readline.createInterface(process.stdin, process.stdout);
-
-fs.readFile('dados.txt', { encoding: 'UTF-8' }, (err, data) => {
-    if (err) throw err;
-    console.log(data);
-    reader.question('Linha: ', linha => {
-        fs.appendFile('dados.txt', linha + '\n', err => {
-            if (err) throw err;
-            reader.close();
-        });
-    });
-});
-```
-
-Não é difícil imaginar a necessidade de encadear três operações assíncronas em um código real (na prática podem ocorrer muito mais) e é visível que a legibilidade do código se denigre muito rápido. Extrair os callbacks não ajuda muito, pois granulariza demais o código, o que também dificulta a leitura.
-
-Com o objetivo de melhorar isso, surgiu no JavaScript o conceito de promessas (*promises*). A ideia principal é, ao chamar uma operação assíncrona, ao invés de passar um callback como parâmetro, receber um objeto como retorno, e ser capaz de inscrever neste objeto funções que serão chamadas no futuro com o resultado da operação. Veja o exemplo acima, reescrito para usar a versão da API de sistema de arquivos baseada em Promises:
-
-```js
-const fs = require('fs');
-const readline = require('readline');
-
-const reader = readline.createInterface(process.stdin, process.stdout);
-
-fs.promises.readFile('dados.txt', { encoding: 'UTF-8' })
-    .then(data => {
-        console.log(data);
-        return new Promise((resolve, _) => {
-            reader.question('Linha: ', linha => resolve(linha));
-        });
-    })
-    .then(linha => fs.promises.appendFile('dados.txt', linha + '\n'))
-    .then(() => reader.close());
-```
-
-E como fica o tratamento de erros? Da forma como está implementado no exemplo, o comportamento é exatamente o mesmo da versão anterior, visto que o erro era apenas relançado assim que identificado. Para fazer algo diferente com ele, no entanto, é necessário usar a função `catch` da promessa, ou passar um segundo callback como parâmetro para as chamadas `then`:
-
-```js
-fs.promises.readFile('dados.txt', { encoding: 'UTF-8' })
-    .then(data => {
-        console.log(data);
-        return new Promise((resolve, _) => {
-            reader.question('Linha: ', linha => resolve(linha));
-        });
-    })
-    .then(linha => fs.promises.appendFile('dados.txt', linha + '\n'))
-    .then(() => reader.close())
-    .catch(err => {
-        console.log(`Erro: ${err}`);
-        reader.close();
-    });
-```
-
-A legibilidade do código ficou muito melhor, mas ainda é possível melhorar. Com o intuito de aproximar ainda mais a sintaxe de código assíncrono da sintaxe de código síncrono, duas novas palavras-chave surgiram na linguagem: `async` e `await`. `async` é adicionado em funções, e diz para o Node.js que essa função pode usar a palavra-chave `await` dentro dela. Já a `await` é usada logo antes de chamadas que retornam promessas, e basicamente faz com que a execução interrompa (sem bloquear o loop de eventos) até que a resposta chegue e ela possa prosseguir de onde parou. Veja o exemplo reescrito com o uso dessas palavras-chave:
-
-```js
-const fs = require('fs');
-const readline = require('readline');
-
-const reader = readline.createInterface(process.stdin, process.stdout);
-
-async function main() {
-    try {
-        const data = await fs.promises.readFile('dados.txt', { encoding: 'UTF-8' });
-        console.log(data);
-        const linha = await new Promise((resolve, _) => {
-            reader.question('Linha: ', linha => resolve(linha));
-        });
-        await fs.promises.appendFile('dados.txt', linha + '\n');
-    } catch (err) {
-        console.log(`Erro: ${err}`);
-    } finally {
-        reader.close();
+async function main () {
+  let fd;
+  try {
+    fd = await open('resultado.txt', 'a');
+    for (let i = 0; i < 1000; i++) {
+      const numeros = [];
+      for (let j = 0; j < 100; j++) {
+        numeros.push(Math.ceil(Math.random() * 100000));
+      }
+      await fd.appendFile(numeros.join('\n') + '\n');
     }
+  } finally {
+    if (fd) {
+      await fd.close();
+    }
+  }
 }
 
-console.log(main());
+main();
 ```
 
-Agora sim a implementação está bem legível, sem comprometer a performance. Note que só o fato de demarcar a função como `async` já faz ela retornar uma promessa, o que faz sentido se analisar as consequências disso.
-
-[1] https://nodejs.org/api/fs.html
-
-### Múltiplos processos
-
-Hoje em dia dificilmente se fala em computadores com um único núcleo de processamento. Com base nisso, como garantir que sua aplicação, principalmente se ela for um servidor, está adequadamente aproveitando todos os recursos da máquina? Com a programação multi-thread, a solução é garantir que o trabalho de processamento fique adequadamente distribuído em threads cujo número seja no mínimo igual à quantidade de processadores disponíveis. Mas e no Node.js?
-
-Considere o seguinte exemplo, e monitore a execução desse código (usando algo como `htop` ou o Gerenciador de Tarefas):
+Agora crie outro arquivo chamado `contador-de-pares.js` que fará o processo clusterizado:
 
 ```js
-const startInMillis = new Date().getTime();
-let soma = 0;
-for (let i = 0; i < 10000000000; i++) {
-    soma += i;
-}
-console.log(soma);
-const endInMillis = new Date().getTime();
-const durationInMillis = endInMillis - startInMillis;
-console.log(durationInMillis);
-```
+import cluster from 'cluster';
+import process from 'process';
+import { createInterface } from 'readline';
+import { createReadStream } from 'fs';
 
-Note que o processamento fica todo em um único núcleo. Como aproveitar todo o recurso disponível nestes casos? Para esse tipo de situação existe o módulo `cluster`, capaz de criar processos filhos que podem acabar sendo agendados em núcleos diferentes do processador. Veja o exemplo reescrito:
+const WORKERS = 8;
 
-```js
-const cluster = require('cluster');
+if (cluster.isPrimary) {
 
-if (cluster.isWorker) {
-
-    cluster.worker.on('message', message => {
-        let soma = 0;
-        for (let i = message.inicio; i < message.fim; i++) {
-            soma += i;
-        }
-        console.log(`Worker: ${soma}`);
-        cluster.worker.send(soma);
-        cluster.worker.disconnect();
+  let recebidos = 0;
+  let total = 0;
+  for (let i = 0; i < WORKERS; i++) {
+    const worker = cluster.fork({ IDX: i });
+    worker.on('message', parcial => {
+      worker.kill();
+      total += parcial;
+      recebidos++;
+      if (recebidos === WORKERS) {
+        console.log('total', total);
+      }
     });
+  }
 
 } else {
 
-    let recebidos = 0;
-    let soma = 0;
-    cluster.on('message', (_, message) => {
-        soma += message;
-        recebidos++;
-        if (recebidos == NUMERO_DE_PROCESSOS) {
-            console.log(`Master: ${soma}`);
+  const idx = parseInt(process.env.IDX);
+  console.log(`worker ${idx}...`)
+
+  const readStream = createReadStream('resultado.txt');
+  const lineReader = createInterface(readStream);
+
+  let parcial = 0;
+  let indiceDaLinha = 0;
+  for await (const linha of lineReader) {
+    if (linha !== "") {
+      if (indiceDaLinha % WORKERS === idx) {
+        const numero = parseInt(linha);
+        if (numero % 2 === 0) {
+          parcial += 1;
         }
-    });
-
-    const workers = [];
-    const NUMERO_DE_PROCESSOS = 4;
-    for (let i = 0; i < NUMERO_DE_PROCESSOS; i++) {
-        workers.push(cluster.fork());
+      }
     }
-
-    const TOTAL_PARCELAS = 100000000000;
-    const PARCELAS_POR_PROCESSO = TOTAL_PARCELAS / NUMERO_DE_PROCESSOS;
-    for (let i = 0; i < NUMERO_DE_PROCESSOS; i++) {
-        workers[i].send({
-            inicio: PARCELAS_POR_PROCESSO * i,
-            fim: PARCELAS_POR_PROCESSO * (i + 1)
-        });
-    }
-
-}
-```
-
-Note que dificilmente o desenvolvedor usa esses módulos diretamente, mas é importante entender como os frameworks utilizados fazem o que fazem, isso ajuda na depuração de problemas e na concepção de soluções para problemas não tão comuns.
-
-### Servindo HTTP
-
-Ser capaz de escrever utilitários de linha de comando é útil, mas não é nem de longe o único uso do Node.js. Servir como back-end HTTP é um dos principais motivos de sua concepção, e existe suporte nativo para isso [1]. Existem também módulos estáveis para HTTP/2 [2] e HTTPS [3].
-
-Suponha que você deseja implementar uma API de dados para manipulação de tarefas. Cada tarefa possui um identificador, uma data de criação, uma descrição, uma data prevista para conclusão e uma data real de conclusão. As seguintes operações devem ser suportadas pela API:
-
-- Listar as tarefas (apenas o identificador, a descrição e um indicativo de conclusão) filtrando (opcionalmente) por qualquer parte da descrição.
-- Buscar os dados completos de uma tarefa específica.
-- Cadastrar uma tarefa.
-- Alterar a descrição de uma tarefa existente.
-- Alterar a data prevista de conclusão de uma tarefa.
-- Concluir uma tarefa.
-- Reabrir uma tarefa.
-
-Traduzindo para o modelo REST, uma das formas de implementar essa API é através do seguinte conjunto de requisições:
-
-- `GET /tarefas[?filtro=]`. Resposta: `[{ id: number, descricao: string, concluida: boolean }]`.
-- `GET /tarefas/{id}`. Resposta: `{ descricao: string, criacao: Date, previsao: Date, conclusao?: Date }`.
-- `POST /tarefas`. Corpo: `{ descricao: string, previsao: Date }`.
-- `PUT /tarefas/{id}/descricao`. Corpo: `string`.
-- `PUT /tarefas/{id}/previsao`. Corpo: `Date`.
-- `POST /tarefas/{id}/finalizar`
-- `POST /tarefas/{id}/reabrir`
-
-Note que também seria possível implementar um único `PUT` expondo todos os atributos, mas isso transfere muita inteligência de negócio para o front-end, e normalmente não é isso que se deseja.
-
-Antes de iniciar o desenvolvimento da API, escreva o seguinte módulo JavaScript, que fará o papel de repositório de dados. Como ainda não existe uma base de dados disponível, os dados serão voláteis, ou seja, serão perdidos entre execuções da aplicação. Coloque o código em um arquivo chamado `tarefas/tarefas-modelo.js`:
-
-```js
-let ID = 1;
-const REGISTROS = [];
-
-
-class Tarefa {
-  constructor(descricao, previsao) {
-    this.id = ID;
-    ID++;
-    this.descricao = descricao;
-    this.previsao = previsao;
-    this.criacao = new Date();
-    this.conclusao = null;
-  }
-};
-module.exports.Tarefa = Tarefa;
-
-
-REGISTROS.push(new Tarefa('Terminar essa API', null));
-REGISTROS.push(new Tarefa('Ir embora', new Date()));
-
-
-module.exports.listar = function (filtro) {
-  if (!filtro) {
-    return REGISTROS;
-  } else {
-    const lower = filtro.toLowerCase();
-    return REGISTROS.filter(x => x.descricao.toLowerCase().indexOf(lower) >= 0);
-  }
-};
-
-
-function buscarPorId (id) {
-  return REGISTROS.filter(x => x.id == id)[0];
-}
-module.exports.buscarPorId = buscarPorId;
-
-
-module.exports.cadastrar = function (tarefa) {
-  REGISTROS.push(tarefa);
-};
-
-
-module.exports.alterarDescricao = function (id, descricao) {
-  buscarPorId(id).descricao = descricao;
-};
-
-
-module.exports.alterarPrevisao = function (id, previsao) {
-  buscarPorId(id).previsao = previsao;
-};
-
-
-module.exports.concluir = function (id) {
-  buscarPorId(id).conclusao = new Date();
-};
-
-
-module.exports.reabrir = function (id) {
-  buscarPorId(id).conclusao = null;
-};
-
-
-module.exports.excluir = function (id) {
-  const registro = buscarPorId(id);
-  const idx = REGISTROS.indexOf(registro);
-  REGISTROS.splice(idx, 1);
-}
-```
-
-Note que esses métodos não estão efetuando nenhum tipo de validação nos dados, eles servem apenas para fins ilustrativos.
-
-Teste esse módulo usando o REPL do Node. Para isso, basta executar o comando `node`, importar o módulo via `require` e usar os métodos dele, ex:
-
-```sh
-$ node
-> const tarefas = require('./tarefas/tarefas-modelo');
-> tarefas.buscar();
-> tarefas.excluir(1);
-```
-
-Com o módulo de acesso aos dados concluído, é possível prosseguir para o desenvolvimento da API HTTP que expõe as funcionalidades desse módulo. Crie um arquivo chamado `main.js`, com o seguinte código:
-
-```js
-const http = require('http');
-
-
-const server = http.createServer((req, res) => {
-    let data = "";
-    req.on('data', chunk => {
-        data += chunk;
-    });
-    req.on('end', () => {
-        console.log(data);
-        res.write(`Olá, ${data}!`);
-        res.end();
-    });
-});
-server.listen(8080);
-```
-
-Teste usando qualquer ferramenta de execução de chamadas HTTP, como o cUrl ou o Postman.
-
-Prossiga agora para os *endpoints* de listagem, detalhamento e cadastro. Pensando na modularização do código, crie um arquivo `tarefas/tarefas-api.js`, com o seguinte conteúdo:
-
-```js
-const tarefas = require('./tarefas-modelo');
-
-
-function get(req, res, data, path, queryParams) {
-    res.write('get');
-}
-
-
-function getById(req, res, data, path, queryParams) {
-    res.write('getById');
-}
-
-
-function post(req, res, data, path, queryParams) {
-    res.write('post');
-}
-
-
-module.exports.processar = function (req, res, data, path, queryParams) {
-    const method = req.method;
-    if (method == 'GET' && path.startsWith('/tarefas/')) {
-        getById(req, res, data, path, queryParams);
-    } else if (method == 'GET' && path === '/tarefas') {
-        get(req, res, data, path, queryParams);
-    } else if (method == 'POST' && path === '/tarefas') {
-        post(req, res, data, path, queryParams);
-    } else {
-        res.statusCode = 404;
-    }
-}
-```
-
-E ajuste o arquivo `main.js` dessa maneira:
-
-```js
-const http = require('http');
-const querystring = require('querystring');
-const tarefas = require('./tarefas/tarefas-api');
-
-
-const server = http.createServer((req, res) => {
-    let data = "";
-    req.on('data', chunk => {
-        data += chunk;
-    });
-    req.on('end', () => {
-        const url = req.url.split('?');
-        const path = url[0];
-        const queryParams = url.length > 1 ? querystring.parse(url[1]) : {};
-        if (path.startsWith('/tarefas')) {
-            tarefas.processar(req, res, data, path, queryParams);
-        } else {
-            res.statusCode = 404;
-        }
-        res.write('\n'+data);
-        res.write('\n'+path);
-        res.write('\n'+JSON.stringify(queryParams));
-        res.end();
-    });
-});
-server.listen(8080);
-```
-
-Teste o resultado usando cUrl ou Postman. Uma vez entendido o funcionamento, termine a implementação dos métodos no módulo `tarefas-api.js`:
-
-```js
-const tarefas = require('./tarefas-modelo');
-
-
-function get(req, res, data, path, queryParams) {
-    const filtro = queryParams['filtro'];
-    const registros = tarefas.listar(filtro);
-    res.write(JSON.stringify(registros.map(x => {
-        return {
-            id: x.id,
-            descricao: x.descricao,
-            concluida: x.conclusao != null
-        };
-    })));
-}
-
-
-function getById(req, res, data, path, queryParams) {
-    const partes = path.split('/');
-    const id = parseInt(partes[2]);
-    const registro = tarefas.buscarPorId(id);
-    res.write(JSON.stringify({
-        descricao: registro.descricao,
-        criacao: registro.criacao,
-        conclusao: registro.conclusao,
-        previsao: registro.previsao
-    }));
-}
-
-
-function post(req, res, data, path, queryParams) {
-    const obj = JSON.parse(data);
-    const descricao = obj['descricao'];
-    const previsao = obj['previsao'] ?
-        new Date(obj['previsao']) : null;
-    const registro = new tarefas.Tarefa(descricao, previsao);
-    tarefas.cadastrar(registro);
-}
-
-
-module.exports.processar = function (req, res, data, path, queryParams) {
-    const method = req.method;
-    if (method == 'GET' && path.startsWith('/tarefas/')) {
-        getById(req, res, data, path, queryParams);
-    } else if (method == 'GET' && path === '/tarefas') {
-        get(req, res, data, path, queryParams);
-    } else if (method == 'POST' && path === '/tarefas') {
-        post(req, res, data, path, queryParams);
-    } else {
-        res.statusCode = 404;
-    }
-}
-```
-
-Antes de testar, remova as escritas de teste deixadas no arquivo `main.js`, deixando-o dessa forma:
-
-```js
-const http = require('http');
-const querystring = require('querystring');
-const tarefas = require('./tarefas/tarefas-api');
-
-
-const server = http.createServer((req, res) => {
-    let data = "";
-    req.on('data', chunk => {
-        data += chunk;
-    });
-    req.on('end', () => {
-        const url = req.url.split('?');
-        const path = url[0];
-        const queryParams = url.length > 1 ? querystring.parse(url[1]) : {};
-        if (path.startsWith('/tarefas')) {
-            tarefas.processar(req, res, data, path, queryParams);
-        } else {
-            res.statusCode = 404;
-        }
-        res.end();
-    });
-});
-server.listen(8080);
-```
-
-Finalize agora os outros 5 endpoints, modificando o arquivo `tarefas-api.js`:
-
-```js
-const tarefas = require('./tarefas-modelo');
-
-
-function extrairId(path) {
-    const partes = path.split('/');
-    return parseInt(partes[2]);
-}
-
-
-function get(req, res, data, path, queryParams) {
-    const filtro = queryParams['filtro'];
-    const registros = tarefas.listar(filtro);
-    res.write(JSON.stringify(registros.map(x => {
-        return {
-            id: x.id,
-            descricao: x.descricao,
-            concluida: x.conclusao != null
-        };
-    })));
-}
-
-
-function getById(req, res, data, path, queryParams) {
-    const id = extrairId(path);
-    const registro = tarefas.buscarPorId(id);
-    res.write(JSON.stringify({
-        descricao: registro.descricao,
-        criacao: registro.criacao,
-        conclusao: registro.conclusao,
-        previsao: registro.previsao
-    }));
-}
-
-
-function post(req, res, data, path, queryParams) {
-    const obj = JSON.parse(data);
-    const descricao = obj['descricao'];
-    const previsao = obj['previsao'] ?
-        new Date(obj['previsao']) : null;
-    const registro = new tarefas.Tarefa(descricao, previsao);
-    tarefas.cadastrar(registro);
-}
-
-
-function del(req, res, data, path, queryParams) {
-    const id = extrairId(path);
-    tarefas.excluir(id);
-}
-
-
-function finalizar(req, res, data, path, queryParams) {
-    const id = extrairId(path);
-    tarefas.concluir(id);
-}
-
-
-function reabrir(req, res, data, path, queryParams) {
-    const id = extrairId(path);
-    tarefas.reabrir(id);
-}
-
-
-function alterarDescricao(req, res, data, path, queryParams) {
-    const id = extrairId(path);
-    const descricao = data;
-    tarefas.alterarDescricao(id, descricao);
-}
-
-
-function alterarPrevisao(req, res, data, path, queryParams) {
-    const id = extrairId(path);
-    const previsao = new Date(data);
-    tarefas.alterarPrevisao(id, previsao);
-}
-
-
-module.exports.processar = function (req, res, data, path, queryParams) {
-    const method = req.method;
-    if (method == 'GET' && path.startsWith('/tarefas/')) {
-        getById(req, res, data, path, queryParams);
-    } else if (method == 'GET' && path === '/tarefas') {
-        get(req, res, data, path, queryParams);
-    } else if (method == 'POST' && path === '/tarefas') {
-        post(req, res, data, path, queryParams);
-    } else if (method == 'DELETE' && path.startsWith('/tarefas/')) {
-        del(req, res, data, path, queryParams);
-    } else if (method == 'POST' && path.endsWith('/finalizar')) {
-        finalizar(req, res, data, path, queryParams);
-    } else if (method == 'POST' && path.endsWith('/reabrir')) {
-        reabrir(req, res, data, path, queryParams);
-    } else if (method == 'PUT' && path.endsWith('/descricao')) {
-        alterarDescricao(req, res, data, path, queryParams);
-    } else if (method == 'PUT' && path.endsWith('/previsao')) {
-        alterarPrevisao(req, res, data, path, queryParams);
-    } else {
-        res.statusCode = 404;
-    }
-}
-```
-
-Teste novamente. Note que qualquer erro causa indisponibilidade completa da aplicação. É possível melhorar isso no arquivo `main.js`, envolvendo todo o processo interno em um `try/catch`:
-
-```js
-req.on('end', () => {
-    try {
-        const url = req.url.split('?');
-        const path = url[0];
-        const queryParams = url.length > 1 ? querystring.parse(url[1]) : {};
-        if (path.startsWith('/tarefas')) {
-            tarefas.processar(req, res, data, path, queryParams);
-        } else {
-            res.statusCode = 404;
-        }
-    } catch (err) {
-        console.error(err);
-        res.statusCode = 500;
-    } finally {
-        res.end();
-    }
-});
-```
-
-Note que isso só funciona pois o processamento interno foi todo desenvolvido de forma síncrona. Na prática isso não iria acontecer, e além desse `try/catch` uma estrutura de promessas teria que ser usada para capturar todos os possíveis casos de tabela.
-
-Uma outra pequena melhoria possível é a escrita do Header de resposta `Content-Type: application/json`, isso ajuda a ferramentas como o Postman (e as bibliotecas de HTTP dos frameworks web) a entenderem como processar a resposta. Isso pode ser feito de modo genérico direto no `main.js`:
-
-```js
-req.on('end', () => {
-    try {
-        res.setHeader('Content-Type', 'application/json');
-        const url = req.url.split('?');
-        const path = url[0];
-```
-
-[1] https://nodejs.org/api/http.html
-
-[2] https://nodejs.org/api/http2.html
-
-[3] https://nodejs.org/api/https.html
-
-## Consumindo a API usando um front-end Angular
-
-Para finalizar o tópico, construir um front-end simples, usando Angular, que consome a API construída parece uma boa ideia. Comece garantindo que possui o `@angular/cli` disponível na instalação do Node.js:
-
-```
-$ ng --version
-```
-
-Caso não tenha (provavelmente esse será o caso por conta da instalação do `nvm`), instale-o com o seguinte comando:
-
-```
-$ npm install -g @angular/cli
-```
-
-Inicie um novo projeto com o comando abaixo (não há a necessidade de adicionar roteamento para este exemplo). Dê o nome `tarefas` ao projeto:
-
-```
-$ ng new
-```
-
-Teste se tudo funcionou com o comando abaixo:
-
-```
-$ cd tarefas/
-$ ng serve
-```
-
-E acesse `http://localhost:4200/` no navegador. Abra um outro terminal e deixe a API executando.
-
-Modifique o arquivo `app.component.html` dessa forma:
-
-```html
-<table>
-  <thead>
-    <tr>
-      <th>Tarefa</th>
-      <th>Previsão</th>
-      <th>Concluída?</th>
-      <th>Ações</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr *ngFor="let tarefa of tarefas">
-      <td>{{tarefa.descricao}}</td>
-      <td>{{tarefa.previsao | date:"dd/MM/yyyy HH:mm"}}</td>
-      <td>{{tarefa.concluida ? 'Sim' : 'Não'}}</td>
-      <td>
-        <button (click)="concluir(tarefa)" *ngIf="!tarefa.concluida">Concluir</button>
-        <button (click)="reabrir(tarefa)" *ngIf="tarefa.concluida">Reabrir</button>
-        <button (click)="remover(tarefa)">Excluir</button>
-      </td>
-    </tr>
-  </tbody>
-</table>
-
-<form [formGroup]="formGroup" (ngSubmit)="cadastrar()">
-  <p>
-    Descrição:
-    <input formControlName="descricao">
-  </p>
-  <p>
-    Previsão:
-    <input type="date" formControlName="previsao">
-  </p>
-  <p>
-    <button>Cadastrar</button>
-  </p>
-</form>
-```
-
-Instale também o `@angular/forms` no projeto, usando o comando abaixo:
-
-```
-$ npm install @angular/forms
-```
-
-E importe o módulo de formulários reativos na classe `AppModule`:
-
-```ts
-import { BrowserModule } from '@angular/platform-browser';
-import { NgModule } from '@angular/core';
-import { ReactiveFormsModule } from '@angular/forms';
-
-import { AppComponent } from './app.component';
-
-@NgModule({
-  declarations: [
-    AppComponent
-  ],
-  imports: [
-    BrowserModule,
-    ReactiveFormsModule
-  ],
-  providers: [],
-  bootstrap: [AppComponent]
-})
-export class AppModule { }
-```
-
-Agora implemente os atributos para a tabela e o formulário na classe `AppComponent`, por enquanto sem nenhuma comunicação com a API:
-
-```ts
-import { Component, OnInit } from '@angular/core';
-import { FormGroup, FormBuilder, Validators } from '@angular/forms';
-
-
-interface Tarefa {
-  id: number;
-  descricao: string;
-  previsao?: Date;
-  concluida: boolean;
-}
-
-
-@Component({
-  selector: 'app-root',
-  templateUrl: './app.component.html',
-  styleUrls: ['./app.component.css']
-})
-export class AppComponent implements OnInit {
-
-  tarefas: Tarefa[] = [
-    {
-      id: 1,
-      concluida: false,
-      descricao: 'Tarefa 1',
-      previsao: new Date()
-    }
-  ];
-
-  descricao?: string;
-  previsao?: Date;
-
-  formGroup: FormGroup;
-
-  constructor(private builder: FormBuilder) {
+    indiceDaLinha++;
   }
 
-  ngOnInit() {
-    this.formGroup = this.builder.group({
-      descricao: ['', Validators.required],
-      previsao: [null]
-    });
-  }
+  console.log('parcial', idx, parcial);
+  cluster.worker.send(parcial);
 
 }
 ```
 
-Execute a aplicação e garanta que ela está funcionando (exceto os cliques nos botões).
+Como esse exemplo é muito simples (o gargalo é IO e não CPU) ele vai executar mais rápido com 1 worker, mas note que com 4 ou mais ele aproveita melhor as CPUs disponíveis na máquina.
 
-Para implementar as integrações com a API de dados, comece instalando o módulo `@angular/http`:
-
-```
-$ npm install @angular/http
-```
-
-Depois importe o módulo na classe `AppModule`:
-
-```ts
-import { BrowserModule } from '@angular/platform-browser';
-import { NgModule } from '@angular/core';
-import { ReactiveFormsModule } from '@angular/forms';
-import { HttpClientModule } from '@angular/common/http';
-
-import { AppComponent } from './app.component';
-
-@NgModule({
-  declarations: [
-    AppComponent
-  ],
-  imports: [
-    BrowserModule,
-    ReactiveFormsModule,
-    HttpClientModule
-  ],
-  providers: [],
-  bootstrap: [AppComponent]
-})
-export class AppModule { }
-```
-
-Importe agora o `HttpClient` na classe `AppComponent` e efetue a implementação da chamada de API para buscar tarefas:
-
-```ts
-import { Component, OnInit } from '@angular/core';
-import { FormGroup, FormBuilder, Validators } from '@angular/forms';
-import { HttpClient } from '@angular/common/http';
-
-
-interface Tarefa {
-  id: number;
-  descricao: string;
-  previsao?: Date;
-  concluida: boolean;
-}
-
-
-@Component({
-  selector: 'app-root',
-  templateUrl: './app.component.html',
-  styleUrls: ['./app.component.css']
-})
-export class AppComponent implements OnInit {
-
-  tarefas: Tarefa[] = [];
-
-  formGroup: FormGroup;
-
-  constructor(private builder: FormBuilder,
-              private http: HttpClient) {
-  }
-
-  ngOnInit() {
-    this.formGroup = this.builder.group({
-      descricao: ['', Validators.required],
-      previsao: [null]
-    });
-    this.http.get('http://localhost:8080/tarefas').subscribe(tarefas => {
-      this.tarefas = <Tarefa[]>tarefas;
-    });
-  }
-
-}
-```
-
-Ao testar, o navegador não vai permitir a finalização da chamada, devido a um mecanismo de segurança chamado CORS (Cross-Origin Resource Sharing). Existem muitas maneiras de lidar com CORS, a mais fácil (e insegura) delas é adicionar um header em todas as respostas, permitindo que qualquer host efetue a chamada. Faça isso no arquivo `main.js` (note que isso é feito no back-end, e não no front-end):
-
-```js
-req.on('data', chunk => {
-    data += chunk;
-});
-req.on('end', () => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Headers', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'OPTIONS, POST, GET, DELETE, PUT');
-    if (req.method == 'OPTIONS') {
-        res.end();
-        return;
-    }
-    try {
-        res.setHeader('Content-Type', 'application/json');
-        const url = req.url.split('?');
-        const path = url[0];
-```
-
-Agora termine a implementação dos outros comportamentos do gestor de tarefas, na classe `AppComponent`:
-
-```ts
-import { Component, OnInit } from '@angular/core';
-import { FormGroup, FormBuilder, Validators } from '@angular/forms';
-import { HttpClient } from '@angular/common/http';
-
-
-interface Tarefa {
-  id: number;
-  descricao: string;
-  previsao?: Date;
-  concluida: boolean;
-}
-
-
-@Component({
-  selector: 'app-root',
-  templateUrl: './app.component.html',
-  styleUrls: ['./app.component.css']
-})
-export class AppComponent implements OnInit {
-
-  tarefas: Tarefa[] = [];
-
-  formGroup: FormGroup;
-
-  constructor(private builder: FormBuilder,
-              private http: HttpClient) {
-  }
-
-  ngOnInit() {
-    this.formGroup = this.builder.group({
-      descricao: ['', Validators.required],
-      previsao: [null]
-    });
-    this.carregar();
-  }
-
-  private carregar() {
-    this.http.get('http://localhost:8080/tarefas').subscribe(tarefas => {
-      this.tarefas = <Tarefa[]>tarefas;
-    });
-  }
-
-  concluir(tarefa: Tarefa) {
-    this.http.post(`http://localhost:8080/tarefas/${tarefa.id}/finalizar`, {}).subscribe(() => {
-      tarefa.concluida = true;
-    });
-  }
-
-  reabrir(tarefa: Tarefa) {
-    this.http.post(`http://localhost:8080/tarefas/${tarefa.id}/reabrir`, {}).subscribe(() => {
-      tarefa.concluida = false;
-    });
-  }
-
-  remover(tarefa: Tarefa) {
-    this.http.delete(`http://localhost:8080/tarefas/${tarefa.id}`).subscribe(() => {
-      this.tarefas.splice(this.tarefas.indexOf(tarefa), 1);
-    });
-  }
-
-  cadastrar() {
-    const dados = this.formGroup.value;
-    this.http.post(`http://localhost:8080/tarefas`, dados).subscribe(() => {
-      this.formGroup.setValue({
-        descricao: "",
-        previsao: null
-      });
-      this.carregar();
-    });
-  }
-
-}
-```
-
-Nota: em um projeto real seriam utilizadas bibliotecas de componentes (como a `@angular/material`), uma componentização mais granular (ao invés de implementar tudo no `AppComponent`) e camadas de serviços para isolar as chamadas HTTP dos componentes. No entanto, nada disso é essencial para passar a mensagem que se espera nesse exemplo.
+Proposta de exercício: incremente o exemplo básico de endpoint HTTP de modo que funcione por trás de um cluster. Use também o módulo `https` para implementar uma chamada real para o serviço ao invés de simular o retorno. Vá promessificando e refatorando o código para usar async/await.
