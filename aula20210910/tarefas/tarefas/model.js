@@ -1,5 +1,7 @@
 import util from 'util';
 
+import { UsuarioNaoAutenticado } from '../erros.js';
+
 const pausar = util.promisify(setTimeout);
 
 let sequencial = 3;
@@ -23,7 +25,7 @@ const tarefas = [
 
 export async function cadastrarTarefa (tarefa, usuario) {
   if (usuario === undefined) {
-    throw new Error('Usuário não autenticado.');
+    throw new UsuarioNaoAutenticado();
   }
   const loginDoUsuario = usuario.login;
   await pausar(25);
@@ -38,7 +40,7 @@ export async function cadastrarTarefa (tarefa, usuario) {
 
 export async function consultarTarefas (termo, usuario) {
   if (usuario === undefined) {
-    throw new Error('Usuário não autenticado.');
+    throw new UsuarioNaoAutenticado();
   }
   await pausar(25);
 

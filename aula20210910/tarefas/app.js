@@ -26,6 +26,18 @@ app.use(asyncWrapper(async (req, _res, next) => {
   next();
 }));
 
+app.use((req, _res, next) => {
+  const contentType = req.headers['content-type'];
+  if (contentType !== undefined && !contentType.startsWith('application/json')) {
+    next({
+      message: 'Formato inválido.',
+      statusCode: 400
+    });
+  } else {
+    next();
+  }
+});
+
 app.use(express.json());
 
 app.post('/tarefas', asyncWrapper(async (req, res) => {
@@ -46,9 +58,25 @@ app.post('/usuarios/login', asyncWrapper(async (req, res) => {
   res.send({ token: autenticacao });
 }));
 
+app.use((_req, res) => {
+  res.status(404).send({
+    razao: 'Rota não encontrada.'
+  });
+});
+
 app.use((err, _req, res, _next) => {
-  const razao = err.message || err;
-  res.status(500).send({ razao });
+  let resposta;
+  if (err.codigo) {
+    resposta = {
+      codigo: err.codigo,
+      descricao: err.message
+    };
+  } else {
+    const razao = err.message || err;
+    resposta = { razao };
+  }
+  const statusCode = err.statusCode || 500;
+  res.status(statusCode).send(resposta);
 });
 
 app.listen(8080);

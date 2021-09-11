@@ -1,6 +1,9 @@
 import util from 'util';
 import { v4 as uuidv4 } from 'uuid';
 
+import { DadosOuEstadoInvalido, TokenInvalido } from '../erros.js';
+
+
 const pausar = util.promisify(setTimeout);
 
 const usuarios = {
@@ -25,10 +28,10 @@ export async function autenticar (login, senha) {
   await pausar(25);
   const usuario = usuarios[login];
   if (usuario === undefined) {
-    throw new Error('Usuário não existe.');
+    throw new DadosOuEstadoInvalido('UsuarioNaoEncontrado', 'Usuário não encontrado.');
   }
   if (usuario.senha !== senha) {
-    throw new Error('Senha inválida');
+    throw new DadosOuEstadoInvalido('SenhaInvalida', 'Senha inválida.');
   }
   const autenticacao = uuidv4();
   autenticacoes[autenticacao] = login;
@@ -42,7 +45,7 @@ export async function recuperarUsuarioAutenticado (autenticacao) {
   await pausar(25);
   const login = autenticacoes[autenticacao];
   if (login === undefined) {
-    throw new Error('Token inválido.');
+    throw new TokenInvalido();
   }
   const usuario = usuarios[login];
   return {
