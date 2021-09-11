@@ -17,7 +17,7 @@ export class UsuarioNaoAutenticado extends Error {
 export class TokenInvalido extends Error {
   constructor() {
     super('Token inválido.');
-    this.statusCode = 403;
+    this.statusCode = 401;
   }
 }
 
