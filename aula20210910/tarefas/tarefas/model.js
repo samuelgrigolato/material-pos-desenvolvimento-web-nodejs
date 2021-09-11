@@ -14,3 +14,13 @@ export async function cadastrarTarefa (tarefa) {
   });
   return sequencial;
 }
+
+export async function consultarTarefas (termo) {
+  await pausar(25);
+  let resultado = tarefas;
+  if (termo !== undefined && termo !== null) {
+    const termoLowerCase = termo.toLocaleLowerCase();
+    resultado = resultado.filter(x => x.descricao.toLocaleLowerCase().includes(termoLowerCase));
+  }
+  return resultado;
+}
