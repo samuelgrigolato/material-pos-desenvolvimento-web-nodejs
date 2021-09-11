@@ -23,4 +23,9 @@ app.get('/tarefas', asyncWrapper(async (req, res) => {
   res.send(tarefas);
 }));
 
+app.use((err, _req, res, _next) => {
+  const razao = err.message || err;
+  res.status(500).send({ razao });
+});
+
 app.listen(8080);
