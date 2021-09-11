@@ -1,15 +1,21 @@
 import express from 'express';
+import cors from 'cors';
 
 import asyncWrapper from './async-wrapper.js';
 import { cadastrarTarefa, consultarTarefas } from './tarefas/model.js';
+import { autenticar } from './usuarios/model.js';
 
 const app = express();
-app.use(express.json());
+app.use(cors());
 
-app.use((_req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
+app.use((req, res, next) => {
+  res.on('finish', () => {
+    console.log(new Date().toISOString(), `[${req.method}]`, req.url, res.statusCode);
+  });
   next();
 });
+
+app.use(express.json());
 
 app.post('/tarefas', asyncWrapper(async (req, res) => {
   const tarefa = req.body;
@@ -21,6 +27,12 @@ app.get('/tarefas', asyncWrapper(async (req, res) => {
   const termo = req.query.termo;
   const tarefas = await consultarTarefas(termo);
   res.send(tarefas);
+}));
+
+app.post('/usuarios/login', asyncWrapper(async (req, res) => {
+  const { login, senha } = req.body;
+  const autenticacao = await autenticar(login, senha);
+  res.send({ token: autenticacao });
 }));
 
 app.use((err, _req, res, _next) => {
