@@ -2,8 +2,24 @@ import util from 'util';
 
 const pausar = util.promisify(setTimeout);
 
-let sequencial = 0;
-const tarefas = [];
+let sequencial = 3;
+const tarefas = [
+  {
+    id: 1,
+    descricao: 'Comprar leite.',
+    loginDoUsuario: 'pedro'
+  },
+  {
+    id: 2,
+    descricao: 'Trocar lâmpada.',
+    loginDoUsuario: 'pedro'
+  },
+  {
+    id: 3,
+    descricao: 'Instalar torneira.',
+    loginDoUsuario: 'clara'
+  }
+];
 
 export async function cadastrarTarefa (tarefa, loginDoUsuario) {
   if (loginDoUsuario === undefined) {

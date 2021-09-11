@@ -15,7 +15,8 @@ const usuarios = {
 };
 
 const autenticacoes = {
-  'f3a86b8f-49a7-4f97-bea0-78990c5cd9b1': 'pedro'
+  'f3a86b8f-49a7-4f97-bea0-78990c5cd9b1': 'pedro',
+  'a2a011ef-b6c5-471f-98cd-95837c7bdea5': 'clara'
 };
 
 export async function autenticar (login, senha) {
@@ -30,4 +31,16 @@ export async function autenticar (login, senha) {
   const autenticacao = uuidv4();
   autenticacoes[autenticacao] = login;
   return autenticacao;
+}
+
+export async function recuperarLoginDoUsuarioAutenticado (autenticacao) {
+  if (autenticacao === undefined) {
+    throw new Error('Token é necessário para autenticar.');
+  }
+  await pausar(25);
+  const login = autenticacoes[autenticacao];
+  if (login === undefined) {
+    throw new Error('Token inválido.');
+  }
+  return login;
 }
