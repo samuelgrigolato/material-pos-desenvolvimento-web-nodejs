@@ -3,7 +3,7 @@ import cors from 'cors';
 
 import asyncWrapper from './async-wrapper.js';
 import { cadastrarTarefa, consultarTarefas } from './tarefas/model.js';
-import { autenticar, recuperarLoginDoUsuarioAutenticado } from './usuarios/model.js';
+import { autenticar, recuperarUsuarioAutenticado } from './usuarios/model.js';
 
 const app = express();
 app.use(cors());
@@ -20,8 +20,8 @@ app.use(asyncWrapper(async (req, _res, next) => {
   const match = /^Bearer (.*)$/.exec(authorization);
   if (match) {
     const autenticacao = match[1];
-    const login = await recuperarLoginDoUsuarioAutenticado(autenticacao);
-    req.loginDoUsuario = login;
+    const usuario = await recuperarUsuarioAutenticado(autenticacao);
+    req.usuario = usuario;
   }
   next();
 }));
@@ -30,13 +30,13 @@ app.use(express.json());
 
 app.post('/tarefas', asyncWrapper(async (req, res) => {
   const tarefa = req.body;
-  const id = await cadastrarTarefa(tarefa, req.loginDoUsuario);
+  const id = await cadastrarTarefa(tarefa, req.usuario);
   res.status(201).send({ id });
 }));
 
 app.get('/tarefas', asyncWrapper(async (req, res) => {
   const termo = req.query.termo;
-  const tarefas = await consultarTarefas(termo, req.loginDoUsuario);
+  const tarefas = await consultarTarefas(termo, req.usuario);
   res.send(tarefas);
 }));
 

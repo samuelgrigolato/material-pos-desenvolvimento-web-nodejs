@@ -6,11 +6,13 @@ const pausar = util.promisify(setTimeout);
 const usuarios = {
   pedro: {
     nome: 'Pedro',
-    senha: '123456' // na prática obviamente seria um bcrypt
+    senha: '123456', // na prática obviamente seria um bcrypt
+    admin: false
   },
   clara: {
     nome: 'Clara',
-    senha: '234567'
+    senha: '234567',
+    admin: true
   }
 };
 
@@ -33,7 +35,7 @@ export async function autenticar (login, senha) {
   return autenticacao;
 }
 
-export async function recuperarLoginDoUsuarioAutenticado (autenticacao) {
+export async function recuperarUsuarioAutenticado (autenticacao) {
   if (autenticacao === undefined) {
     throw new Error('Token é necessário para autenticar.');
   }
@@ -42,5 +44,10 @@ export async function recuperarLoginDoUsuarioAutenticado (autenticacao) {
   if (login === undefined) {
     throw new Error('Token inválido.');
   }
-  return login;
+  const usuario = usuarios[login];
+  return {
+    nome: usuario.nome,
+    admin: usuario.admin,
+    login
+  };
 }

@@ -21,10 +21,11 @@ const tarefas = [
   }
 ];
 
-export async function cadastrarTarefa (tarefa, loginDoUsuario) {
-  if (loginDoUsuario === undefined) {
+export async function cadastrarTarefa (tarefa, usuario) {
+  if (usuario === undefined) {
     throw new Error('Usuário não autenticado.');
   }
+  const loginDoUsuario = usuario.login;
   await pausar(25);
   sequencial++;
   tarefas.push({
@@ -35,12 +36,19 @@ export async function cadastrarTarefa (tarefa, loginDoUsuario) {
   return sequencial;
 }
 
-export async function consultarTarefas (termo, loginDoUsuario) {
-  if (loginDoUsuario === undefined) {
+export async function consultarTarefas (termo, usuario) {
+  if (usuario === undefined) {
     throw new Error('Usuário não autenticado.');
   }
   await pausar(25);
-  let resultado = tarefas.filter(x => x.loginDoUsuario === loginDoUsuario);
+
+  const loginDoUsuario = usuario.login;
+  const usuarioAdmin = usuario.admin;
+
+  let resultado = usuarioAdmin ?
+    tarefas :
+    tarefas.filter(x => x.loginDoUsuario === loginDoUsuario);
+
   if (termo !== undefined && termo !== null) {
     const termoLowerCase = termo.toLocaleLowerCase();
     resultado = resultado.filter(x => x.descricao.toLocaleLowerCase().includes(termoLowerCase));
