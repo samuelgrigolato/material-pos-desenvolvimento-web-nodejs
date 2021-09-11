@@ -7,7 +7,6 @@ const tarefas = [];
 
 export async function cadastrarTarefa (tarefa) {
   await pausar(25);
-  throw new Error('erro forçado');
   sequencial++;
   tarefas.push({
     id: sequencial,
