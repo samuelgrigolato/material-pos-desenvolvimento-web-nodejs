@@ -1,5 +1,6 @@
 import express from 'express';
 
+import asyncWrapper from './async-wrapper.js';
 import { cadastrarTarefa, consultarTarefas } from './tarefas/model.js';
 
 const app = express();
@@ -10,20 +11,16 @@ app.use((_req, res, next) => {
   next();
 });
 
-app.post('/tarefas', (req, res, next) => {
+app.post('/tarefas', asyncWrapper(async (req, res) => {
   const tarefa = req.body;
-  cadastrarTarefa(tarefa)
-    .then(id => {
-      res.status(201).send({ id });
-    })
-    .catch(next);
-});
+  const id = await cadastrarTarefa(tarefa);
+  res.status(201).send({ id });
+}));
 
-app.get('/tarefas', (req, res, next) => {
+app.get('/tarefas', asyncWrapper(async (req, res) => {
   const termo = req.query.termo;
-  consultarTarefas(termo)
-    .then(tarefas => res.send(tarefas))
-    .catch(next);
-});
+  const tarefas = await consultarTarefas(termo);
+  res.send(tarefas);
+}));
 
 app.listen(8080);
