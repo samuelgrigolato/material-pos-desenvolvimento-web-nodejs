@@ -1078,8 +1078,30 @@ components:
             required: [ 'codigo', 'descricao' ]
     NaoAutenticado:
       description: Você deve incluir um token de autenticação para efetuar essa chamada.
-    NaoAutorizadoOuCredencialInvalida:
-      description: Sua credencial é inválida ou você está autenticado mas não possui acesso ao recurso solicitado.
+    NaoAutorizadoOuTokenInvalido:
+      description: Seu token de autenticação é inválido, expirou ou você está autenticado mas não possui acesso ao recurso solicitado.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              tipo:
+                type: string
+                enum: [ 'NaoAutorizado', 'TokenInvalido' ]
+            required:
+            - tipo
+    TokenInvalido:
+      description: Seu token de autenticação é inválido ou expirou.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              tipo:
+                type: string
+                enum: [ 'TokenInvalido' ]
+            required:
+            - tipo
     BugOuServidorIndisponivel:
       description: Ocorreu um erro no servidor ou ele encontra-se indisponível.
   securitySchemes:
@@ -1116,7 +1138,7 @@ Vamos agora especificar o GET /tarefas:
         401:
           $ref: '#/components/responses/NaoAutenticado'
         403:
-          $ref: '#/components/responses/NaoAutorizadoOuCredencialInvalida'
+          $ref: '#/components/responses/TokenInvalido'
         500:
           $ref: '#/components/responses/BugOuServidorIndisponivel'
 # ...
@@ -1125,7 +1147,6 @@ Vamos agora especificar o GET /tarefas:
 Proposta de exercício: documente os seguintes endpoints:
 
 - POST /tarefas
-- GET /tarefas/{id} (dica: attributo `in` do parâmetro `id` é `path`)
 - GET /usuarios/logado
 - PUT /usuarios/logado/nome
 
