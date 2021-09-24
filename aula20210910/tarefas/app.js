@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 
 import asyncWrapper from './async-wrapper.js';
-import { cadastrarTarefa, consultarTarefas } from './tarefas/model.js';
+import tarefasRouter from './tarefas/router.js';
 import usuariosRouter from './usuarios/router.js';
 import { recuperarUsuarioAutenticado } from './usuarios/model.js';
 
@@ -41,18 +41,7 @@ app.use((req, _res, next) => {
 
 app.use(express.json());
 
-app.post('/tarefas', asyncWrapper(async (req, res) => {
-  const tarefa = req.body;
-  const id = await cadastrarTarefa(tarefa, req.usuario);
-  res.status(201).send({ id });
-}));
-
-app.get('/tarefas', asyncWrapper(async (req, res) => {
-  const termo = req.query.termo;
-  const tarefas = await consultarTarefas(termo, req.usuario);
-  res.send(tarefas);
-}));
-
+app.use('/tarefas', tarefasRouter);
 app.use('/usuarios', usuariosRouter);
 
 app.use((_req, res) => {
