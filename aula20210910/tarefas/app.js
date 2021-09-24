@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 
 import asyncWrapper from './async-wrapper.js';
+import autenticado from './autenticado.js';
 import { cadastrarTarefa, consultarTarefas } from './tarefas/model.js';
 import { autenticar, recuperarUsuarioAutenticado } from './usuarios/model.js';
 
@@ -56,6 +57,12 @@ app.post('/usuarios/login', asyncWrapper(async (req, res) => {
   const { login, senha } = req.body;
   const autenticacao = await autenticar(login, senha);
   res.send({ token: autenticacao });
+}));
+
+app.get('/usuarios/logado', autenticado, asyncWrapper(async (req, res) => {
+  res.send({
+    nome: req.usuario.nome
+  });
 }));
 
 app.use((_req, res) => {
