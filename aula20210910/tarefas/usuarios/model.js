@@ -54,3 +54,9 @@ export async function recuperarUsuarioAutenticado (autenticacao) {
     login
   };
 }
+
+export async function alterarNome (novoNome, loginDoUsuario) {
+  await pausar(25);
+  const usuario = usuarios[loginDoUsuario];
+  usuario.nome = novoNome;
+}
