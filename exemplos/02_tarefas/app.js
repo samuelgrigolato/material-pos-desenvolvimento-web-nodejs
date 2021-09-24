@@ -5,6 +5,8 @@ import asyncWrapper from './async-wrapper.js';
 import { recuperarLoginDoUsuarioAutenticado } from './usuarios/model.js';
 import usuariosRouter from './usuarios/router.js';
 import tarefasRouter from './tarefas/router.js';
+import etiquetasRouter from './etiquetas/router.js';
+import categoriasRouter from './categorias/router.js';
 
 const app = express();
 app.use(cors());
@@ -34,8 +36,9 @@ app.use(asyncWrapper(async (req, _res, next) => {
 }));
 
 app.use('/tarefas', tarefasRouter);
-
 app.use('/usuarios', usuariosRouter);
+app.use('/etiquetas', etiquetasRouter);
+app.use('/categorias', categoriasRouter);
 
 app.use((_req, res) => {
   res.status(404).send({

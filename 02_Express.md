@@ -794,7 +794,7 @@ npm install @angular/material
 
 Atenção: o comando seguinte vai se comportar de modo diferente no npm 7 (que acompanha o node 16). Peer dependencies são resolvidas automaticamente nesta versão do gerenciador.
 
-Esse comando instala a dependência `@angular/material` no projeto. Repare que o comando reclama de um `peer dependency` que você precisa instalar manualmente, o `@angular/cdk`. Uma ótima leitura sobre isso pode ser vista aqui: https://stackoverflow.com/questions/26737819/why-use-peer-dependencies-in-npm-for-plugins, e aqui: https://nodejs.org/en/blog/npm/peer-dependencies/. Também discutiremos sobre isso mais abaixo.
+Esse comando instala a dependência `@angular/material` no projeto. Repare que o comando reclama de um `peer dependency` que você precisa instalar manualmente, o `@angular/cdk`. Uma ótima leitura sobre isso pode ser vista aqui: https://stackoverflow.com/questions/26737819/why-use-peer-dependencies-in-npm-for-plugins, e aqui: https://nodejs.org/en/blog/npm/peer-dependencies/ (ver base/node_modules/define_property e define_property na árvore do Angular por exemplo). Também discutiremos sobre isso mais abaixo.
 
 ```
 npm install @angular/cdk
@@ -945,7 +945,7 @@ Comece com um único atributo definindo a versão da especificação:
 openapi: 3.0.1
 ```
 
-Node que o editor comeca a ajudar indicando as coisas que estão faltando. Adicione detalhes básicos de identificação e um objeto vazio de caminhos.
+Note que o editor comeca a ajudar indicando as coisas que estão faltando. Adicione detalhes básicos de identificação e um objeto vazio de caminhos.
 
 ```yaml
 openapi: 3.0.1
