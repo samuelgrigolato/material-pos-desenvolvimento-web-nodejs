@@ -2,6 +2,7 @@ import util from 'util';
 import { v4 as uuidv4 } from 'uuid';
 
 import { DadosOuEstadoInvalido, TokenInvalido } from '../erros.js';
+import { conectar } from '../db.js';
 
 
 const pausar = util.promisify(setTimeout);
@@ -56,13 +57,19 @@ export async function recuperarUsuarioAutenticado (autenticacao) {
 }
 
 export async function recuperarDadosDoUsuario (loginDoUsuario) {
-  const usuario = usuarios[loginDoUsuario];
-  if (usuario === undefined) {
-    throw new Error('Usuário não encontrado.');
+  const conexao = await conectar();
+  try {
+    const res = await conexao.query(
+      'select nome from usuarios where login = $1;',
+      [ loginDoUsuario ]
+    );
+    if (res.rowCount === 0) {
+      throw new Error('Usuário não encontrado.');
+    }
+    return res.rows[0];
+  } finally {
+    await conexao.end();
   }
-  return {
-    nome: usuario.nome
-  };
 }
 
 export async function alterarNome (novoNome, loginDoUsuario) {
