@@ -1,9 +1,10 @@
 import util from 'util';
 import { v4 as uuidv4 } from 'uuid';
+import sequelizeLib from 'sequelize';
 
 import { DadosOuEstadoInvalido, TokenInvalido } from '../erros.js';
 import sequelize from '../orm.js';
-import sequelizeLib from 'sequelize';
+import knex from '../querybuilder.js';
 
 const { DataTypes, Model } = sequelizeLib;
 class Usuario extends Model {}
@@ -64,17 +65,13 @@ export async function recuperarUsuarioAutenticado (autenticacao) {
 }
 
 export async function recuperarDadosDoUsuario (loginDoUsuario) {
-  const usuario = await Usuario.findOne({
-    where: {
-      login: loginDoUsuario
-    }
-  });
-  if (usuario === null) {
+  const res = await knex('usuarios')
+    .select('nome')
+    .where('login', loginDoUsuario);
+  if (res.length === 0) {
     throw new Error('Usuário não encontrado.');
   }
-  return {
-    nome: usuario.nome
-  };
+  return res[0];
 }
 
 export async function alterarNome (novoNome, loginDoUsuario) {
