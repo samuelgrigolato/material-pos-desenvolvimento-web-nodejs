@@ -1,9 +1,10 @@
 
 export class DadosOuEstadoInvalido extends Error {
-  constructor(codigo, descricao) {
+  constructor(codigo, descricao, extra) {
     super(descricao);
     this.codigo = codigo;
     this.statusCode = 422;
+    this.extra = extra;
   }
 }
 

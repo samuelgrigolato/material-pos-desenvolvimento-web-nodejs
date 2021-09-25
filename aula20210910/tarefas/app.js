@@ -55,7 +55,8 @@ app.use((err, _req, res, _next) => {
   if (err.codigo) {
     resposta = {
       codigo: err.codigo,
-      descricao: err.message
+      descricao: err.message,
+      extra: err.extra
     };
   } else {
     const razao = err.message || err;

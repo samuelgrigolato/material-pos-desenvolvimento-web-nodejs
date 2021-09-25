@@ -1,13 +1,33 @@
 import express from 'express';
+import Ajv from 'ajv';
 
 import asyncWrapper from '../async-wrapper.js';
 import autenticado from '../autenticado.js';
 import { alterarNome, autenticar } from './model.js';
+import { DadosOuEstadoInvalido } from '../erros.js';
 
 
 const router = express.Router();
 
+const ajv = new Ajv({
+  allErrors: true
+});
+const loginSchema = {
+  type: 'object',
+  properties: {
+    login: { type: 'string' },
+    senha: { type: 'string' }
+  },
+  required: [ 'login', 'senha' ],
+  additionalProperties: false
+};
+const loginSchemaValidator = ajv.compile(loginSchema);
+
 router.post('/login', asyncWrapper(async (req, res) => {
+  if (!loginSchemaValidator(req.body)) {
+    const errors = loginSchemaValidator.errors;
+    throw new DadosOuEstadoInvalido('FalhouValidacaoEsquema', ajv.errorsText(errors), errors);
+  }
   const { login, senha } = req.body;
   const autenticacao = await autenticar(login, senha);
   res.send({ token: autenticacao });
