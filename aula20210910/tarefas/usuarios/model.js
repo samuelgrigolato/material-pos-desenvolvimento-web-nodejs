@@ -2,8 +2,15 @@ import util from 'util';
 import { v4 as uuidv4 } from 'uuid';
 
 import { DadosOuEstadoInvalido, TokenInvalido } from '../erros.js';
-import { conectar } from '../db.js';
+import sequelize from '../orm.js';
+import sequelizeLib from 'sequelize';
 
+const { DataTypes, Model } = sequelizeLib;
+class Usuario extends Model {}
+Usuario.init({
+  login: DataTypes.TEXT,
+  nome: DataTypes.TEXT
+}, { sequelize, modelName: 'usuarios' });
 
 const pausar = util.promisify(setTimeout);
 
@@ -57,19 +64,17 @@ export async function recuperarUsuarioAutenticado (autenticacao) {
 }
 
 export async function recuperarDadosDoUsuario (loginDoUsuario) {
-  const conexao = await conectar();
-  try {
-    const res = await conexao.query(
-      'select nome from usuarios where login = $1;',
-      [ loginDoUsuario ]
-    );
-    if (res.rowCount === 0) {
-      throw new Error('Usuário não encontrado.');
+  const usuario = await Usuario.findOne({
+    where: {
+      login: loginDoUsuario
     }
-    return res.rows[0];
-  } finally {
-    await conexao.end();
+  });
+  if (usuario === null) {
+    throw new Error('Usuário não encontrado.');
   }
+  return {
+    nome: usuario.nome
+  };
 }
 
 export async function alterarNome (novoNome, loginDoUsuario) {
