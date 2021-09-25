@@ -51,16 +51,18 @@ export async function recuperarUsuarioAutenticado (autenticacao) {
   if (autenticacao === undefined) {
     throw new Error('Token é necessário para autenticar.');
   }
-  await pausar(25);
-  const login = autenticacoes[autenticacao];
-  if (login === undefined) {
+  const res = await knex('usuarios')
+    .join('autenticacoes', 'autenticacoes.id_usuario', 'usuarios.id')
+    .where('autenticacoes.id', autenticacao)
+    .select('nome', 'login');
+  if (res.length === 0) {
     throw new TokenInvalido();
   }
-  const usuario = usuarios[login];
+  const usuario = res[0];
   return {
     nome: usuario.nome,
-    admin: usuario.admin,
-    login
+    login: usuario.login,
+    admin: false
   };
 }
 
