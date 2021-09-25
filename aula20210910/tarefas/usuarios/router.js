@@ -3,7 +3,7 @@ import express from 'express';
 import asyncWrapper from '../async-wrapper.js';
 import schemaValidator from '../schema-validator.js';
 import autenticado from '../autenticado.js';
-import { alterarNome, autenticar } from './model.js';
+import { alterarNome, autenticar, recuperarDadosDoUsuario } from './model.js';
 
 
 const router = express.Router();
@@ -28,9 +28,9 @@ router.post(
 );
 
 router.get('/logado', autenticado, asyncWrapper(async (req, res) => {
-  res.send({
-    nome: req.usuario.nome
-  });
+  const loginDoUsuario = req.usuario.login;
+  const usuario = await recuperarDadosDoUsuario(loginDoUsuario);
+  res.send(usuario);
 }));
 
 router.put(

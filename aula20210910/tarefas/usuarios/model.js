@@ -55,6 +55,16 @@ export async function recuperarUsuarioAutenticado (autenticacao) {
   };
 }
 
+export async function recuperarDadosDoUsuario (loginDoUsuario) {
+  const usuario = usuarios[loginDoUsuario];
+  if (usuario === undefined) {
+    throw new Error('Usuário não encontrado.');
+  }
+  return {
+    nome: usuario.nome
+  };
+}
+
 export async function alterarNome (novoNome, loginDoUsuario) {
   await pausar(25);
   const usuario = usuarios[loginDoUsuario];

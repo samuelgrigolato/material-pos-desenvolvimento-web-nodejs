@@ -1,0 +1,23 @@
+{
+  "tarefas": [
+    {
+      "id": 1,
+      "descricao": "Comprar leite.",
+      "loginDoUsuario": "pedro",
+      "dataDaConclusao": null
+    },
+    {
+      "id": 2,
+      "descricao": "Trocar lâmpada.",
+      "loginDoUsuario": "pedro",
+      "dataDaConclusao": "2020-01-02T10:30:01+03:00"
+    },
+    {
+      "id": 3,
+      "descricao": "Instalar torneira.",
+      "loginDoUsuario": "clara",
+      "dataDaConclusao": null
+    }
+  ],
+  "sequencial": 3
+}
