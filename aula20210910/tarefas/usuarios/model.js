@@ -1,6 +1,7 @@
 import util from 'util';
 import { v4 as uuidv4 } from 'uuid';
 import sequelizeLib from 'sequelize';
+import bcrypt from 'bcryptjs';
 
 import { DadosOuEstadoInvalido, TokenInvalido } from '../erros.js';
 import sequelize from '../orm.js';
@@ -28,22 +29,26 @@ const usuarios = {
   }
 };
 
-const autenticacoes = {
-  'f3a86b8f-49a7-4f97-bea0-78990c5cd9b1': 'pedro',
-  'a2a011ef-b6c5-471f-98cd-95837c7bdea5': 'clara'
-};
-
 export async function autenticar (login, senha) {
-  await pausar(25);
-  const usuario = usuarios[login];
-  if (usuario === undefined) {
+  const res = await knex('usuarios')
+    .where('login', login)
+    .select('id', 'senha');
+  if (res.length === 0) {
     throw new DadosOuEstadoInvalido('UsuarioNaoEncontrado', 'Usuário não encontrado.');
   }
-  if (usuario.senha !== senha) {
+
+  const usuario = res[0];
+  const senhaValida = usuario.senha !== null && await bcrypt.compare(senha, usuario.senha);
+  if (!senhaValida) {
     throw new DadosOuEstadoInvalido('SenhaInvalida', 'Senha inválida.');
   }
+
   const autenticacao = uuidv4();
-  autenticacoes[autenticacao] = login;
+  await knex('autenticacoes')
+    .insert({
+      id: autenticacao,
+      id_usuario: usuario.id
+    });
   return autenticacao;
 }
 
