@@ -1,8 +1,8 @@
 import express from 'express';
 
 import asyncWrapper from '../async-wrapper.js';
-import { DadosOuEstadoInvalido } from '../erros.js';
-import { cadastrarTarefa, consultarTarefas } from './model.js';
+import autenticado from '../autenticado.js';
+import { cadastrarTarefa, concluirTarefa, consultarTarefas } from './model.js';
 import schemaValidator from '../schema-validator.js';
 
 
@@ -29,6 +29,11 @@ router.get('', asyncWrapper(async (req, res) => {
   const termo = req.query.termo;
   const tarefas = await consultarTarefas(termo, req.usuario);
   res.send(tarefas);
+}));
+
+router.post('/:id/concluir', autenticado, asyncWrapper(async (req, res) => {
+  await concluirTarefa(req.params.id, req.usuario);
+  res.sendStatus(204);
 }));
 
 export default router;
