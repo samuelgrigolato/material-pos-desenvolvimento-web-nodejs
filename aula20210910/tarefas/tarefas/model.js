@@ -79,3 +79,15 @@ export async function concluirTarefa (idTarefa, usuario) {
     tarefa.dataDaConclusao = new Date().toISOString();
   }
 }
+
+export async function reabrirTarefa (idTarefa, usuario) {
+  await pausar(25);
+  const tarefa = tarefas.find(x => x['id'] === parseInt(idTarefa));
+  if (tarefa === undefined) {
+    throw new DadosOuEstadoInvalido('TarefaNaoEncontrada', 'Tarefa não encontrada.');
+  }
+  if (tarefa.loginDoUsuario !== usuario.login) {
+    throw new AcessoNegado();
+  }
+  tarefa.dataDaConclusao = null;
+}

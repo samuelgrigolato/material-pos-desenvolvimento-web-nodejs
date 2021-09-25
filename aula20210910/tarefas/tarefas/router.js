@@ -2,7 +2,7 @@ import express from 'express';
 
 import asyncWrapper from '../async-wrapper.js';
 import autenticado from '../autenticado.js';
-import { cadastrarTarefa, concluirTarefa, consultarTarefas } from './model.js';
+import { cadastrarTarefa, concluirTarefa, consultarTarefas, reabrirTarefa } from './model.js';
 import schemaValidator from '../schema-validator.js';
 
 
@@ -33,6 +33,11 @@ router.get('', asyncWrapper(async (req, res) => {
 
 router.post('/:id/concluir', autenticado, asyncWrapper(async (req, res) => {
   await concluirTarefa(req.params.id, req.usuario);
+  res.sendStatus(204);
+}));
+
+router.post('/:id/reabrir', autenticado, asyncWrapper(async (req, res) => {
+  await reabrirTarefa(req.params.id, req.usuario);
   res.sendStatus(204);
 }));
 
