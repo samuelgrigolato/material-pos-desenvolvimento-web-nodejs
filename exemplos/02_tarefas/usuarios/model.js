@@ -1,8 +1,22 @@
-import { v4 as uuidv4 } from 'uuid';
+import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 
 import { AutenticacaoInvalida, DadosOuEstadoInvalido, UsuarioNaoAutenticado } from '../erros.js';
 import knex from '../querybuilder.js';
+
+
+const JWT_SECRET = process.env.JWT_SECRET;
+if (JWT_SECRET === undefined || JWT_SECRET === '') {
+  throw new Error('Env JWT_SECRET não definida.');
+}
+
+
+export function gerarToken (login) {
+  return jwt.sign({
+    login,
+    exp: Math.floor(new Date().getTime() / 1000) + 10 * 60 * 60 /* 10 horas */
+  }, JWT_SECRET);
+}
 
 
 export async function autenticar (login, senha) {
@@ -16,22 +30,21 @@ export async function autenticar (login, senha) {
   if (!bcrypt.compareSync(senha, usuario.senha)) {
     throw new DadosOuEstadoInvalido('CredenciaisInvalidas', 'Credenciais inválidas.');
   }
-  const autenticacao = uuidv4();
-  await knex('autenticacoes')
-    .insert({ id: autenticacao, id_usuario: usuario.id });
-  return autenticacao;
+  return gerarToken(login);
 }
 
 
 export async function recuperarLoginDoUsuarioAutenticado (autenticacao) {
-  const res = await knex('usuarios')
-    .join('autenticacoes', 'autenticacoes.id_usuario', 'usuarios.id')
-    .where('autenticacoes.id', autenticacao)
-    .select('usuarios.login');
-  if (res.length === 0) {
+  let tokenVerificado;
+  try {
+    tokenVerificado = jwt.verify(autenticacao, JWT_SECRET);
+  } catch (err) {
+    if (err.message !== 'invalid signature' && err.message !== 'jwt expired') {
+      console.warn(err);
+    }
     throw new AutenticacaoInvalida();
   }
-  return res[0]['login'];
+  return tokenVerificado['login'];
 }
 
 

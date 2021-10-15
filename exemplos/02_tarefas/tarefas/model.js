@@ -16,9 +16,19 @@ export async function cadastrarTarefa (tarefa, loginDoUsuario) {
   return res[0];
 }
 
+const CACHE_CONSULTAR_TAREFAS = {};
+
 export async function consultarTarefas (termo, loginDoUsuario) {
   if (loginDoUsuario === undefined) {
     throw new UsuarioNaoAutenticado();
+  }
+  if (CACHE_CONSULTAR_TAREFAS[loginDoUsuario] !== undefined) {
+    const { validoAte, valor } = CACHE_CONSULTAR_TAREFAS[loginDoUsuario];
+    if (validoAte >= new Date().getTime()) {
+      return valor;
+    } else {
+      delete CACHE_CONSULTAR_TAREFAS[loginDoUsuario];
+    }
   }
   let query = knex('tarefas')
     .join('usuarios', 'usuarios.id', 'tarefas.id_usuario')
@@ -46,12 +56,35 @@ export async function consultarTarefas (termo, loginDoUsuario) {
     });
   }
 
-  return res.map(x => ({
+  const resAnexos = await knex('anexos')
+    .select('id_tarefa', 'id', 'nome', 'tamanho', 'mime_type')
+    .whereIn('id_tarefa', idsTarefa);
+  const mapaAnexos = {};
+  for (const vinculo of resAnexos) {
+    const idTarefa = vinculo.id_tarefa;
+    if (mapaAnexos[idTarefa] === undefined) {
+      mapaAnexos[idTarefa] = [];
+    }
+    mapaAnexos[idTarefa].push({
+      id: vinculo.id,
+      nome: vinculo.nome,
+      tamanho: vinculo.tamanho,
+      mime_type: vinculo.mime_type
+    });
+  }
+
+  const valor = res.map(x => ({
     id: x.id,
     descricao: x.descricao,
     concluida: !!x.data_conclusao,
-    etiquetas: mapaEtiquetas[x.id] || []
+    etiquetas: mapaEtiquetas[x.id] || [],
+    anexos: mapaAnexos[x.id] || []
   }));
+  CACHE_CONSULTAR_TAREFAS[loginDoUsuario] = {
+    validoAte: new Date().getTime() + 10 * 1000 /* 10 segundos */,
+    valor
+  };
+  return valor;
 }
 
 export async function contarTarefasAbertas (loginDoUsuario) {
@@ -123,7 +156,7 @@ export async function deletarTarefa (id, loginDoUsuario) {
 }
 
 export async function vincularEtiqueta (idTarefa, etiqueta, loginDoUsuario, uow) {
-  await assegurarExistenciaEAcesso(idTarefa, loginDoUsuario);
+  await assegurarExistenciaEAcesso(idTarefa, loginDoUsuario, uow);
   const idEtiqueta = await cadastrarEtiquetaSeNecessario(etiqueta, uow);
   await knex('tarefa_etiqueta')
     .transacting(uow)
@@ -147,11 +180,58 @@ export async function desvincularEtiqueta (idTarefa, etiqueta, loginDoUsuario, u
   await removerEtiquetaSeObsoleta(idEtiqueta, uow);
 }
 
-async function assegurarExistenciaEAcesso (idTarefa, loginDoUsuario) {
+export async function cadastrarAnexo (idTarefa, nome, tamanho, mimeType, loginDoUsuario, uow) {
+  await assegurarExistenciaEAcesso(idTarefa, loginDoUsuario);
+  const res = await knex('anexos')
+    .transacting(uow)
+    .insert({
+      id_tarefa: idTarefa,
+      nome,
+      tamanho,
+      mime_type: mimeType
+    })
+    .returning('id');
+  return res[0];
+}
+
+export async function excluirAnexo (idTarefa, idAnexo, loginDoUsuario, uow) {
+  await assegurarExistenciaEAcesso(idTarefa, loginDoUsuario);
+  await assegurarExistenciaEDescendenciaDoAnexo(idTarefa, idAnexo, uow);
+  await knex('anexos')
+    .transacting(uow)
+    .where('id', idAnexo)
+    .delete();
+}
+
+export async function consultarNomeDoAnexo (idTarefa, idAnexo, loginDoUsuario, uow) {
+  await assegurarExistenciaEAcesso(idTarefa, loginDoUsuario);
+  await assegurarExistenciaEDescendenciaDoAnexo(idTarefa, idAnexo, uow);
+  const res = await knex('anexos')
+    .select('nome')
+    .where('id', idAnexo);
+  return res[0].nome;
+}
+
+async function assegurarExistenciaEDescendenciaDoAnexo (idTarefa, idAnexo, uow) {
+  const res = await knex('anexos')
+    .transacting(uow)
+    .select('id_tarefa')
+    .where('id', idAnexo);
+  if (res.length === 0) {
+    throw new DadosOuEstadoInvalido('AnexoNaoEncontrado', 'Anexo não encontrado.');
+  }
+  const anexo = res[0];
+  if (anexo.id_tarefa !== idTarefa) {
+    throw new DadosOuEstadoInvalido('AnexoNaoEncontrado', 'Anexo não encontrado.');
+  }
+}
+
+async function assegurarExistenciaEAcesso (idTarefa, loginDoUsuario, uow) {
   if (loginDoUsuario === undefined) {
     throw new UsuarioNaoAutenticado();
   }
-  const res = await knex('tarefas')
+  const trx = uow || knex;
+  const res = await trx('tarefas')
     .join('usuarios', 'usuarios.id', 'tarefas.id_usuario')
     .where('tarefas.id', idTarefa)
     .select('usuarios.login');

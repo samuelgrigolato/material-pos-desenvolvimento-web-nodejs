@@ -1,4 +1,6 @@
 import express from 'express';
+import fs from 'fs/promises';
+import asyncDownload from '../async-download.js';
 
 import asyncWrapper from '../async-wrapper.js';
 import { comUnidadeDeTrabalho } from '../querybuilder.js';
@@ -6,7 +8,8 @@ import schemaValidator from '../schema-validator.js';
 import {
   buscarTarefa, cadastrarTarefa, alterarTarefa, concluirTarefa,
   consultarTarefas, contarTarefasAbertas, reabrirTarefa,
-  deletarTarefa, vincularEtiqueta, desvincularEtiqueta
+  deletarTarefa, vincularEtiqueta, desvincularEtiqueta, cadastrarAnexo,
+  excluirAnexo, consultarNomeDoAnexo
 } from './model.js';
 
 const router = express.Router();
@@ -46,6 +49,8 @@ router.post('', schemaValidator(tarefaSchema), asyncWrapper(async (req, res) => 
 router.get('', asyncWrapper(async (req, res) => {
   const termo = req.query.termo;
   const tarefas = await consultarTarefas(termo, req.loginDoUsuario);
+  res.append('Cache-Control', 'max-age=2');
+  //res.append('Cache-Control', 'no-store');
   res.send(tarefas);
 }));
 
@@ -88,6 +93,38 @@ router.post('/:id/etiquetas', schemaValidator(vincularEtiquetaSchema), comUnidad
 router.delete('/:id/etiquetas/:descricao', comUnidadeDeTrabalho(), asyncWrapper(async (req, res) => {
   await desvincularEtiqueta(req.params.id, req.params.descricao, req.loginDoUsuario, req.uow);
   res.sendStatus(204);
+}));
+
+router.post('/:id/anexos', comUnidadeDeTrabalho(), asyncWrapper(async (req, res) => {
+  const arquivo = req.files.arquivo;
+  const idAnexo = await cadastrarAnexo(
+    req.params.id,
+    arquivo.name,
+    arquivo.size,
+    arquivo.mimetype,
+    req.loginDoUsuario,
+    req.uow
+  );
+  await arquivo.mv(`uploads/${idAnexo}`);
+  res.json({ id: idAnexo });
+}));
+
+router.delete('/:id/anexos/:idAnexo', comUnidadeDeTrabalho(), asyncWrapper(async (req, res) => {
+  const idAnexo = parseInt(req.params.idAnexo);
+  await excluirAnexo(
+    parseInt(req.params.id),
+    idAnexo,
+    req.loginDoUsuario,
+    req.uow
+  );
+  await fs.rm(`uploads/${idAnexo}`); // MUITO cuidado com essa linha, ela só é segura aqui pois estamos usando parseInt
+  res.sendStatus(204);
+}));
+
+router.get('/:id/anexos/:idAnexo', comUnidadeDeTrabalho(), asyncWrapper(async (req, res) => {
+  const idAnexo = parseInt(req.params.idAnexo);
+  const filename = await consultarNomeDoAnexo(parseInt(req.params.id), idAnexo, req.loginDoUsuario, req.uow);
+  await asyncDownload(`uploads/${idAnexo}`, filename, res);
 }));
 
 export default router;
