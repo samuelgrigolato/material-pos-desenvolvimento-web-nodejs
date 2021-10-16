@@ -5,7 +5,7 @@ import autenticado from '../autenticado.js';
 import {
   cadastrarTarefa, concluirTarefa,
   consultarTarefas, reabrirTarefa,
-  alterarTarefa
+  alterarTarefa, excluirTarefa
 } from './model.js';
 import schemaValidator from '../schema-validator.js';
 
@@ -50,6 +50,15 @@ router.patch('/:id',
     const idTarefa = req.params.id;
     const patch = req.body;
     await alterarTarefa(idTarefa, patch, req.usuario);
+    res.sendStatus(204);
+  })
+);
+
+router.delete('/:id',
+  autenticado,
+  asyncWrapper(async (req, res) => {
+    const idTarefa = req.params.id;
+    await excluirTarefa(idTarefa, req.usuario);
     res.sendStatus(204);
   })
 );

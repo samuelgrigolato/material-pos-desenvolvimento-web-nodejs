@@ -21,17 +21,7 @@ export async function cadastrarTarefa (tarefa, usuario) {
 }
 
 export async function alterarTarefa (idTarefa, patch, usuario) {
-  const res = await knex('tarefas')
-    .join('usuarios', 'usuarios.id', 'tarefas.id_usuario')
-    .where('tarefas.id', idTarefa)
-    .select('usuarios.login');
-  if (res.length === 0) {
-    throw new DadosOuEstadoInvalido('TarefaNaoEncontrada', 'Tarefa não encontrada.');
-  }
-  const tarefa = res[0];
-  if (tarefa.login !== usuario.login) {
-    throw new AcessoNegado();
-  }
+  await assegurarExistenciaEAcesso(idTarefa, usuario);
   const values = {};
   if (patch.descricao) values.descricao = patch.descricao;
   if (patch.id_categoria) values.id_categoria = patch.id_categoria;
@@ -64,31 +54,36 @@ export async function consultarTarefas (termo, usuario) {
 }
 
 export async function concluirTarefa (idTarefa, usuario) {
-  const { tarefas, sequencial } = await carregarTarefas();
-  const tarefa = tarefas.find(x => x['id'] === parseInt(idTarefa));
-  if (tarefa === undefined) {
-    throw new DadosOuEstadoInvalido('TarefaNaoEncontrada', 'Tarefa não encontrada.');
-  }
-  if (tarefa.loginDoUsuario !== usuario.login) {
-    throw new AcessoNegado();
-  }
-  if (tarefa.dataDaConclusao === null) {
-    tarefa.dataDaConclusao = new Date().toISOString();
-    await armazenarTarefas(tarefas, sequencial);
-  }
+  await assegurarExistenciaEAcesso(idTarefa, usuario);
+  await knex('tarefas')
+    .update({ data_conclusao: new Date() })
+    .where('id', idTarefa);
 }
 
 export async function reabrirTarefa (idTarefa, usuario) {
-  const { tarefas, sequencial } = await carregarTarefas();
-  const tarefa = tarefas.find(x => x['id'] === parseInt(idTarefa));
-  if (tarefa === undefined) {
+  await assegurarExistenciaEAcesso(idTarefa, usuario);
+  await knex('tarefas')
+    .update({ data_conclusao: null })
+    .where('id', idTarefa);
+}
+
+export async function excluirTarefa (idTarefa, usuario) {
+  await assegurarExistenciaEAcesso(idTarefa, usuario);
+  await knex('tarefas')
+    .delete()
+    .where('id', idTarefa);
+}
+
+async function assegurarExistenciaEAcesso (idTarefa, usuario) {
+  const res = await knex('tarefas')
+    .join('usuarios', 'usuarios.id', 'tarefas.id_usuario')
+    .where('tarefas.id', idTarefa)
+    .select('usuarios.login');
+  if (res.length === 0) {
     throw new DadosOuEstadoInvalido('TarefaNaoEncontrada', 'Tarefa não encontrada.');
   }
-  if (tarefa.loginDoUsuario !== usuario.login) {
+  const tarefa = res[0];
+  if (tarefa.login !== usuario.login) {
     throw new AcessoNegado();
-  }
-  if (tarefa.dataDaConclusao !== null) {
-    tarefa.dataDaConclusao = null;
-    await armazenarTarefas(tarefas, sequencial);
   }
 }
