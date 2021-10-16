@@ -1,4 +1,4 @@
-import knex from '../querybuilder.js';
+import knex, { isViolacaoChaveEstrangeira } from '../querybuilder.js';
 
 export async function buscarEtiquetas () {
   return await knex('etiquetas')
@@ -19,6 +19,31 @@ export async function cadastrarEtiquetaSeNecessario (descricao, trx) {
     return res[0];
   } else {
     return res[0].id;
+  }
+}
+
+export async function buscarIdDaEtiquetaPelaDescricao ({
+  descricao,
+  uow
+}) {
+  const res = await uow('etiquetas')
+    .select('id')
+    .where('descricao', descricao);
+  if (res.length === 0) return null;
+  return res[0].id;
+}
+
+export async function removerEtiquetaSeObsoleta({
+  descricao,
+  uow
+}) {
+  try {
+    await uow('etiquetas')
+      .delete()
+      .where('descricao', descricao);
+  } catch (err) {
+    if (isViolacaoChaveEstrangeira(err)) return;
+    throw err;
   }
 }
 

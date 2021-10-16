@@ -5,7 +5,8 @@ import autenticado from '../autenticado.js';
 import {
   cadastrarTarefa, concluirTarefa,
   consultarTarefas, reabrirTarefa,
-  alterarTarefa, excluirTarefa, vincularEtiqueta
+  alterarTarefa, excluirTarefa, vincularEtiqueta,
+  desvincularEtiqueta
 } from './model.js';
 import schemaValidator from '../schema-validator.js';
 import { comUnidadeDeTrabalho } from '../querybuilder.js';
@@ -91,6 +92,21 @@ router.post(
   comUnidadeDeTrabalho(),
   asyncWrapper(async (req, res) => {
     await vincularEtiqueta(req.params.id, req.body.etiqueta, req.usuario, req.uow);
+    res.sendStatus(204);
+  })
+);
+
+router.delete(
+  '/:id/etiquetas/:etiqueta',
+  autenticado,
+  comUnidadeDeTrabalho(),
+  asyncWrapper(async (req, res) => {
+    await desvincularEtiqueta({
+      idTarefa: req.params.id,
+      descricaoDaEtiqueta: req.params.etiqueta,
+      usuario: req.usuario,
+      uow: req.uow
+    });
     res.sendStatus(204);
   })
 );

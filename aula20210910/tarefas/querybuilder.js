@@ -23,3 +23,7 @@ export function comUnidadeDeTrabalho () {
     });
   }
 }
+
+export function isViolacaoChaveEstrangeira (err) {
+  return err.code === '23503'; // https://www.postgresql.org/docs/8.2/errcodes-appendix.html
+}

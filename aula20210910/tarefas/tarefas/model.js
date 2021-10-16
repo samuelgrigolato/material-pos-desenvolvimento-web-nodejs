@@ -1,6 +1,9 @@
 import knex from '../querybuilder.js';
 import { AcessoNegado, DadosOuEstadoInvalido, UsuarioNaoAutenticado } from '../erros.js';
-import { cadastrarEtiquetaSeNecessario } from '../etiquetas/model.js';
+import {
+  buscarIdDaEtiquetaPelaDescricao, cadastrarEtiquetaSeNecessario,
+  removerEtiquetaSeObsoleta
+} from '../etiquetas/model.js';
 
 
 export async function cadastrarTarefa (tarefa, usuario) {
@@ -31,6 +34,29 @@ export async function vincularEtiqueta (idTarefa, descricaoDaEtiqueta, usuario, 
       id_etiqueta: idEtiqueta
     })
     .onConflict().ignore();
+}
+
+
+export async function desvincularEtiqueta ({
+  idTarefa,
+  descricaoDaEtiqueta,
+  usuario,
+  uow
+}) {
+  await assegurarExistenciaEAcesso(idTarefa, usuario);
+  const idEtiqueta = await buscarIdDaEtiquetaPelaDescricao({
+    descricao: descricaoDaEtiqueta,
+    uow
+  });
+  if (idEtiqueta === null) return;
+  await uow('tarefa_etiqueta')
+    .delete()
+    .where('id_tarefa', idTarefa)
+    .andWhere('id_etiqueta', idEtiqueta);
+  await removerEtiquetaSeObsoleta({
+    descricao: descricaoDaEtiqueta,
+    uow
+  });
 }
 
 
