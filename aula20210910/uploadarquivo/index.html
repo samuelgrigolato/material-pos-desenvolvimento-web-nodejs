@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset='utf-8'>
+  <meta http-equiv='X-UA-Compatible' content='IE=edge'>
+  <title>Upload Arquivo</title>
+  <meta name='viewport' content='width=device-width, initial-scale=1'>
+</head>
+<body>
+  <input type="file" id="arquivo">
+  <button onclick="enviar()">Enviar</button>
+  <a href="http://localhost:8080/tarefas/5/anexos/7" target="_blank">Download</a>
+  <script>
+
+    function enviar () {
+
+      const input = document.getElementById('arquivo');
+      const arquivo = input.files[0];
+      console.log(arquivo);
+
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', 'http://localhost:8080/tarefas/5/anexos');
+      xhr.addEventListener('progress', (e) => {
+        console.log(e);
+      });
+      xhr.addEventListener('load', (e) => {
+        console.log(e);
+      });
+
+      const formData = new FormData();
+      formData.append('arquivo', arquivo);
+      formData.append('teste', 123);
+      xhr.send(formData);
+
+      // xhr.send(arquivo);
+
+    }
+
+  </script>
+</body>
+</html>

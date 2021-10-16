@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import fileUpload from 'express-fileupload';
 
 import asyncWrapper from './async-wrapper.js';
 import tarefasRouter from './tarefas/router.js';
@@ -30,7 +31,9 @@ app.use(asyncWrapper(async (req, _res, next) => {
 
 app.use((req, _res, next) => {
   const contentType = req.headers['content-type'];
-  if (contentType !== undefined && !contentType.startsWith('application/json')) {
+  if (contentType !== undefined &&
+      !contentType.startsWith('application/json') &&
+      !contentType.startsWith('multipart/form-data')) {
     next({
       message: 'Formato inválido.',
       statusCode: 400
@@ -41,6 +44,12 @@ app.use((req, _res, next) => {
 });
 
 app.use(express.json());
+app.use(fileUpload({
+  debug: true,
+  limits: {
+    fileSize: 50 * 1024 * 1024 // 50mb
+  }
+}));
 
 app.use('/tarefas', tarefasRouter);
 app.use('/usuarios', usuariosRouter);

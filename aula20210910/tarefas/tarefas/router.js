@@ -6,10 +6,12 @@ import {
   cadastrarTarefa, concluirTarefa,
   consultarTarefas, reabrirTarefa,
   alterarTarefa, excluirTarefa, vincularEtiqueta,
-  desvincularEtiqueta
+  desvincularEtiqueta,
+  cadastrarAnexo, consultarNomeDoAnexo
 } from './model.js';
 import schemaValidator from '../schema-validator.js';
 import { comUnidadeDeTrabalho } from '../querybuilder.js';
+import asyncDownload from '../async-download.js';
 
 
 const router = express.Router();
@@ -108,6 +110,45 @@ router.delete(
       uow: req.uow
     });
     res.sendStatus(204);
+  })
+);
+
+router.post(
+  '/:id/anexos',
+  autenticado,
+  comUnidadeDeTrabalho(),
+  asyncWrapper(async (req, res) => {
+    const arquivo = req.files.arquivo;
+    console.log(arquivo);
+    const idAnexo = await cadastrarAnexo({
+      idTarefa: req.params.id,
+      nomeDoArquivo: arquivo.name,
+      tamanho: arquivo.size,
+      mimeType: arquivo.mimetype,
+      usuario: req.usuario,
+      uow: req.uow
+    });
+    await arquivo.mv(`uploads/${idAnexo}`);
+    res.json({ id: idAnexo });
+  })
+);
+
+router.get(
+  '/:id/anexos/:idAnexo',
+  autenticado,
+  comUnidadeDeTrabalho(),
+  asyncWrapper(async (req, res) => {
+    const nomeDoAnexo = await consultarNomeDoAnexo({
+      idTarefa: req.params.id,
+      idAnexo: req.params.idAnexo,
+      usuario: req.usuario,
+      uow: req.uow
+    });
+    await asyncDownload(
+      `uploads/${parseInt(req.params.idAnexo)}`,
+      nomeDoAnexo,
+      res
+    );
   })
 );
 

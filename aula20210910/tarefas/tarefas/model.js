@@ -114,6 +114,46 @@ export async function excluirTarefa (idTarefa, usuario) {
     .where('id', idTarefa);
 }
 
+export async function cadastrarAnexo ({
+  idTarefa,
+  nomeDoArquivo,
+  tamanho,
+  mimeType,
+  usuario,
+  uow
+}) {
+  await assegurarExistenciaEAcesso(idTarefa, usuario);
+  const res = await uow('anexos')
+    .insert({
+      id_tarefa: idTarefa,
+      nome: nomeDoArquivo,
+      tamanho,
+      mime_type: mimeType
+    })
+    .returning('id');
+  return res[0];
+}
+
+export async function consultarNomeDoAnexo ({
+  idTarefa,
+  idAnexo,
+  usuario,
+  uow
+}) {
+  await assegurarExistenciaEAcesso(idTarefa, usuario);
+  const res = await uow('anexos')
+    .select('id_tarefa', 'nome')
+    .where('id', idAnexo);
+  if (res.length === 0) {
+    throw new DadosOuEstadoInvalido('AnexoNaoEncontrado', 'Anexo não encontrado.');
+  }
+  const anexo = res[0];
+  if (anexo.id_tarefa !== parseInt(idTarefa)) {
+    throw new AcessoNegado();
+  }
+  return anexo.nome;
+}
+
 async function assegurarExistenciaEAcesso (idTarefa, usuario) {
   const res = await knex('tarefas')
     .join('usuarios', 'usuarios.id', 'tarefas.id_usuario')
