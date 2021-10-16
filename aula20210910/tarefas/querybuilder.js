@@ -7,3 +7,19 @@ const knex = knexLib({
 });
 
 export default knex;
+
+export function comUnidadeDeTrabalho () {
+  return function (req, res, next) {
+    knex.transaction(function (trx) {
+      res.on('finish', function () {
+        if (res.statusCode < 200 || res.statusCode > 299) {
+          trx.rollback();
+        } else {
+          trx.commit();
+        }
+      });
+      req.uow = trx;
+      next();
+    });
+  }
+}

@@ -8,6 +8,7 @@ import {
   alterarTarefa, excluirTarefa, vincularEtiqueta
 } from './model.js';
 import schemaValidator from '../schema-validator.js';
+import { comUnidadeDeTrabalho } from '../querybuilder.js';
 
 
 const router = express.Router();
@@ -87,8 +88,9 @@ router.post(
     required: ['etiqueta'],
     additionalProperties: false
   }),
+  comUnidadeDeTrabalho(),
   asyncWrapper(async (req, res) => {
-    await vincularEtiqueta(req.params.id, req.body.etiqueta, req.usuario);
+    await vincularEtiqueta(req.params.id, req.body.etiqueta, req.usuario, req.uow);
     res.sendStatus(204);
   })
 );

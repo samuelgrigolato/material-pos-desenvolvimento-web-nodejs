@@ -5,12 +5,12 @@ export async function buscarEtiquetas () {
     .select('descricao', 'cor');
 }
 
-export async function cadastrarEtiquetaSeNecessario (descricao) {
-  let res = await knex('etiquetas')
+export async function cadastrarEtiquetaSeNecessario (descricao, trx) {
+  let res = await trx('etiquetas')
     .select('id')
     .where('descricao', descricao);
   if (res.length === 0) {
-    res = await knex('etiquetas')
+    res = await trx('etiquetas')
       .insert({
         descricao,
         cor: gerarCorAleatoria()

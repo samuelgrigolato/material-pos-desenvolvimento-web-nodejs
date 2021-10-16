@@ -22,10 +22,10 @@ export async function cadastrarTarefa (tarefa, usuario) {
 }
 
 
-export async function vincularEtiqueta (idTarefa, descricaoDaEtiqueta, usuario) {
+export async function vincularEtiqueta (idTarefa, descricaoDaEtiqueta, usuario, trx) {
   await assegurarExistenciaEAcesso(idTarefa, usuario);
-  const idEtiqueta = await cadastrarEtiquetaSeNecessario(descricaoDaEtiqueta);
-  await knex('tarefa_etiqueta')
+  const idEtiqueta = await cadastrarEtiquetaSeNecessario(descricaoDaEtiqueta, trx);
+  await trx('tarefa_etiqueta')
     .insert({
       id_tarefa: idTarefa,
       id_etiqueta: idEtiqueta
