@@ -4,6 +4,7 @@ import cors from 'cors';
 import asyncWrapper from './async-wrapper.js';
 import tarefasRouter from './tarefas/router.js';
 import usuariosRouter from './usuarios/router.js';
+import etiquetasRouter from './etiquetas/router.js';
 import { recuperarUsuarioAutenticado } from './usuarios/model.js';
 
 const app = express();
@@ -43,6 +44,7 @@ app.use(express.json());
 
 app.use('/tarefas', tarefasRouter);
 app.use('/usuarios', usuariosRouter);
+app.use('/etiquetas', etiquetasRouter);
 
 app.use((_req, res) => {
   res.status(404).send({

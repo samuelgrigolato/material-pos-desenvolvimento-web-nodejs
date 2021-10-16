@@ -5,7 +5,7 @@ import autenticado from '../autenticado.js';
 import {
   cadastrarTarefa, concluirTarefa,
   consultarTarefas, reabrirTarefa,
-  alterarTarefa, excluirTarefa
+  alterarTarefa, excluirTarefa, vincularEtiqueta
 } from './model.js';
 import schemaValidator from '../schema-validator.js';
 
@@ -75,5 +75,22 @@ router.post('/:id/reabrir', autenticado, asyncWrapper(async (req, res) => {
   await reabrirTarefa(req.params.id, req.usuario);
   res.sendStatus(204);
 }));
+
+router.post(
+  '/:id/etiquetas',
+  autenticado,
+  schemaValidator({
+    type: 'object',
+    properties: {
+      etiqueta: { type: 'string' }
+    },
+    required: ['etiqueta'],
+    additionalProperties: false
+  }),
+  asyncWrapper(async (req, res) => {
+    await vincularEtiqueta(req.params.id, req.body.etiqueta, req.usuario);
+    res.sendStatus(204);
+  })
+);
 
 export default router;

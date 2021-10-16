@@ -1,5 +1,6 @@
 import knex from '../querybuilder.js';
 import { AcessoNegado, DadosOuEstadoInvalido, UsuarioNaoAutenticado } from '../erros.js';
+import { cadastrarEtiquetaSeNecessario } from '../etiquetas/model.js';
 
 
 export async function cadastrarTarefa (tarefa, usuario) {
@@ -19,6 +20,19 @@ export async function cadastrarTarefa (tarefa, usuario) {
 
   return idTarefa;
 }
+
+
+export async function vincularEtiqueta (idTarefa, descricaoDaEtiqueta, usuario) {
+  await assegurarExistenciaEAcesso(idTarefa, usuario);
+  const idEtiqueta = await cadastrarEtiquetaSeNecessario(descricaoDaEtiqueta);
+  await knex('tarefa_etiqueta')
+    .insert({
+      id_tarefa: idTarefa,
+      id_etiqueta: idEtiqueta
+    })
+    .onConflict().ignore();
+}
+
 
 export async function alterarTarefa (idTarefa, patch, usuario) {
   await assegurarExistenciaEAcesso(idTarefa, usuario);
