@@ -2,7 +2,11 @@ import express from 'express';
 
 import asyncWrapper from '../async-wrapper.js';
 import autenticado from '../autenticado.js';
-import { cadastrarTarefa, concluirTarefa, consultarTarefas, reabrirTarefa } from './model.js';
+import {
+  cadastrarTarefa, concluirTarefa,
+  consultarTarefas, reabrirTarefa,
+  alterarTarefa
+} from './model.js';
 import schemaValidator from '../schema-validator.js';
 
 
@@ -13,9 +17,10 @@ router.post(
   schemaValidator({
     type: 'object',
     properties: {
-      descricao: { type: 'string' }
+      descricao: { type: 'string' },
+      id_categoria: { type: 'number' }
     },
-    required: [ 'descricao' ],
+    required: [ 'descricao', 'id_categoria' ],
     additionalProperties: false
   }),
   asyncWrapper(async (req, res) => {
@@ -31,10 +36,31 @@ router.get('', asyncWrapper(async (req, res) => {
   res.send(tarefas);
 }));
 
-router.post('/:id/concluir', autenticado, asyncWrapper(async (req, res) => {
-  await concluirTarefa(req.params.id, req.usuario);
-  res.sendStatus(204);
-}));
+router.patch('/:id',
+  autenticado,
+  schemaValidator({
+    type: 'object',
+    properties: {
+      descricao: { type: 'string' },
+      id_categoria: { type: 'number' }
+    },
+    additionalProperties: false
+  }),
+  asyncWrapper(async (req, res) => {
+    const idTarefa = req.params.id;
+    const patch = req.body;
+    await alterarTarefa(idTarefa, patch, req.usuario);
+    res.sendStatus(204);
+  })
+);
+
+router.post('/:id/concluir',
+  autenticado,
+  asyncWrapper(async (req, res) => {
+    await concluirTarefa(req.params.id, req.usuario);
+    res.sendStatus(204);
+  })
+);
 
 router.post('/:id/reabrir', autenticado, asyncWrapper(async (req, res) => {
   await reabrirTarefa(req.params.id, req.usuario);

@@ -1,24 +1,5 @@
-import { readFile, writeFile } from 'fs/promises';
-
+import knex from '../querybuilder.js';
 import { AcessoNegado, DadosOuEstadoInvalido, UsuarioNaoAutenticado } from '../erros.js';
-
-
-async function carregarTarefas () {
-  const str = await readFile('dados.json', 'utf-8');
-  return JSON.parse(str);
-}
-
-
-async function armazenarTarefas (tarefas, sequencial) {
-  const dados = { tarefas, sequencial };
-  await writeFile(
-    'dados.json',
-    JSON.stringify(dados, undefined, 2),
-    {
-      encoding: 'utf-8'
-    }
-  )
-}
 
 
 export async function cadastrarTarefa (tarefa, usuario) {
@@ -27,17 +8,37 @@ export async function cadastrarTarefa (tarefa, usuario) {
   }
   const loginDoUsuario = usuario.login;
 
-  let { sequencial, tarefas } = await carregarTarefas();
-  sequencial++;
-  tarefas.push({
-    id: sequencial,
-    loginDoUsuario,
-    descricao: tarefa.descricao,
-    dataDaConclusao: null
-  });
-  await armazenarTarefas(tarefas, sequencial);
+  const res = await knex('tarefas')
+    .insert({
+      descricao: tarefa.descricao,
+      id_categoria: tarefa.id_categoria,
+      id_usuario: knex('usuarios').select('id').where('login', loginDoUsuario)
+    })
+    .returning('id');
+  const idTarefa = res[0];
 
-  return sequencial;
+  return idTarefa;
+}
+
+export async function alterarTarefa (idTarefa, patch, usuario) {
+  const res = await knex('tarefas')
+    .join('usuarios', 'usuarios.id', 'tarefas.id_usuario')
+    .where('tarefas.id', idTarefa)
+    .select('usuarios.login');
+  if (res.length === 0) {
+    throw new DadosOuEstadoInvalido('TarefaNaoEncontrada', 'Tarefa não encontrada.');
+  }
+  const tarefa = res[0];
+  if (tarefa.login !== usuario.login) {
+    throw new AcessoNegado();
+  }
+  const values = {};
+  if (patch.descricao) values.descricao = patch.descricao;
+  if (patch.id_categoria) values.id_categoria = patch.id_categoria;
+  if (Object.keys(values).length === 0) return;
+  await knex('tarefas')
+    .update(values)
+    .where('id', idTarefa);
 }
 
 export async function consultarTarefas (termo, usuario) {
@@ -45,22 +46,20 @@ export async function consultarTarefas (termo, usuario) {
     throw new UsuarioNaoAutenticado();
   }
 
-  const loginDoUsuario = usuario.login;
-  const usuarioAdmin = usuario.admin;
-
-  const { tarefas } = await carregarTarefas();
-  let resultado = usuarioAdmin ?
-    tarefas :
-    tarefas.filter(x => x.loginDoUsuario === loginDoUsuario);
-
-  if (termo !== undefined && termo !== null) {
-    const termoLowerCase = termo.toLocaleLowerCase();
-    resultado = resultado.filter(x => x.descricao.toLocaleLowerCase().includes(termoLowerCase));
+  let query = knex('tarefas')
+    .join('usuarios', 'usuarios.id', 'tarefas.id_usuario')
+    .where('usuarios.login', usuario.login)
+    .select('tarefas.id', 'descricao', 'data_conclusao');
+  if (termo !== undefined && termo !== '') {
+    query = query.where('descricao', 'ilike', `%${termo}%`);
   }
-  return resultado.map(x => ({
+
+  const res = await query.orderBy('descricao');
+
+  return res.map(x => ({
     id: x.id,
     descricao: x.descricao,
-    concluida: x.dataDaConclusao !== null
+    concluida: x.data_conclusao !== null
   }));
 }
 
