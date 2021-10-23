@@ -26,7 +26,7 @@ E execute a API com:
 
 ```sh
 export JWT_SECRET=algosecretoaqui
-export DATABASE_URL=postgres://postgres:postgres@localhost:5432/postgres2
+export DATABASE_URL=postgres://postgres:postgres@localhost:5432/postgres
 npx knex --esm migrate:latest
 node app.js
 ```
