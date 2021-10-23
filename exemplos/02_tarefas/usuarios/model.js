@@ -71,5 +71,6 @@ export async function alterarNomeDoUsuario (novoNome, login) {
     throw new DadosOuEstadoInvalido('CampoObrigatorio', 'Informe o novo nome.');
   }
   await knex('usuarios')
-    .update('nome', novoNome);
+    .update('nome', novoNome)
+    .where('login', login);
 }

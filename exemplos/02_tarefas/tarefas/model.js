@@ -33,7 +33,7 @@ export async function consultarTarefas (termo, loginDoUsuario) {
   let query = knex('tarefas')
     .join('usuarios', 'usuarios.id', 'tarefas.id_usuario')
     .andWhere('usuarios.login', loginDoUsuario)
-    .select('tarefas.id', 'descricao', 'data_conclusao');
+    .select('tarefas.id', 'descricao', 'data_conclusao', 'id_categoria');
   if (termo !== undefined && termo !== '') {
     query = query.where('descricao', 'ilike', `%${termo}%`);
   }
@@ -78,7 +78,8 @@ export async function consultarTarefas (termo, loginDoUsuario) {
     descricao: x.descricao,
     concluida: !!x.data_conclusao,
     etiquetas: mapaEtiquetas[x.id] || [],
-    anexos: mapaAnexos[x.id] || []
+    anexos: mapaAnexos[x.id] || [],
+    id_categoria: x.id_categoria
   }));
   // a instrução abaixo habilita cache no nível do modelo
   // CACHE_CONSULTAR_TAREFAS[loginDoUsuario] = {
@@ -148,6 +149,9 @@ export async function alterarTarefa (id, patch, loginDoUsuario) {
 
 export async function deletarTarefa (id, loginDoUsuario) {
   await assegurarExistenciaEAcesso(id, loginDoUsuario);
+  await knex('anexos')
+    .delete()
+    .where('id_tarefa', id);
   await knex('tarefa_etiqueta')
     .delete()
     .where('id_tarefa', id);
