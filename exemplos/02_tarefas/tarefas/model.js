@@ -80,10 +80,11 @@ export async function consultarTarefas (termo, loginDoUsuario) {
     etiquetas: mapaEtiquetas[x.id] || [],
     anexos: mapaAnexos[x.id] || []
   }));
-  CACHE_CONSULTAR_TAREFAS[loginDoUsuario] = {
-    validoAte: new Date().getTime() + 10 * 1000 /* 10 segundos */,
-    valor
-  };
+  // a instrução abaixo habilita cache no nível do modelo
+  // CACHE_CONSULTAR_TAREFAS[loginDoUsuario] = {
+  //   validoAte: new Date().getTime() + 10 * 1000 /* 10 segundos */,
+  //   valor
+  // };
   return valor;
 }
 

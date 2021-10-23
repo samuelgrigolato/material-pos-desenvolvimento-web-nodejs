@@ -49,7 +49,8 @@ router.post('', schemaValidator(tarefaSchema), asyncWrapper(async (req, res) => 
 router.get('', asyncWrapper(async (req, res) => {
   const termo = req.query.termo;
   const tarefas = await consultarTarefas(termo, req.loginDoUsuario);
-  res.append('Cache-Control', 'max-age=2');
+  // as linhas abaixo habilitam cache no nível HTTP, use com cuidado
+  //res.append('Cache-Control', 'max-age=2');
   //res.append('Cache-Control', 'no-store');
   res.send(tarefas);
 }));
