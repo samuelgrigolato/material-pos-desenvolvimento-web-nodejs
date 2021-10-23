@@ -1,0 +1,520 @@
+_type: export
+__export_format: 4
+__export_date: 2021-10-23T15:31:12.459Z
+__export_source: insomnia.desktop.app:v2020.3.3
+resources:
+  - _id: req_7681606a71844380bba18c943fd4d0cd
+    authentication: {}
+    body:
+      mimeType: application/json
+      text: |-
+        {
+        	"login": "alguem",
+        	"senha": "123456"
+        }
+    created: 1631145970299
+    description: ""
+    headers:
+      - id: pair_dbfbd79cbfa8493296af3d1321851e15
+        name: Content-Type
+        value: application/json
+    isPrivate: false
+    metaSortKey: -1631308597812
+    method: POST
+    modified: 1635001991809
+    name: usuarios/login
+    parameters: []
+    parentId: wrk_d6d02cf8b85a4469b0c9a83cee454edd
+    settingDisableRenderRequestBody: false
+    settingEncodeUrl: true
+    settingFollowRedirects: global
+    settingRebuildPath: true
+    settingSendCookies: true
+    settingStoreCookies: true
+    url: http://localhost:8080/usuarios/login
+    _type: request
+  - _id: wrk_d6d02cf8b85a4469b0c9a83cee454edd
+    created: 1629840164004
+    description: ""
+    modified: 1629840164004
+    name: UFSCar/2021
+    parentId: null
+    scope: null
+    _type: workspace
+  - _id: req_206ab7aa25af49e697ae774317367def
+    authentication:
+      disabled: false
+      token: "{{ auth_token }}"
+      type: bearer
+    body: {}
+    created: 1631149395155
+    description: ""
+    headers: []
+    isPrivate: false
+    metaSortKey: -1631308597799.5
+    method: GET
+    modified: 1635000342012
+    name: usuarios/logado
+    parameters: []
+    parentId: wrk_d6d02cf8b85a4469b0c9a83cee454edd
+    settingDisableRenderRequestBody: false
+    settingEncodeUrl: true
+    settingFollowRedirects: global
+    settingRebuildPath: true
+    settingSendCookies: true
+    settingStoreCookies: true
+    url: http://localhost:8080/usuarios/logado
+    _type: request
+  - _id: req_c76897b72d0247f5afea1b11044f967a
+    authentication:
+      disabled: false
+      token: "{{ auth_token }}"
+      type: bearer
+    body:
+      mimeType: application/json
+      text: |-
+        {
+        	"nome": "Pedro 4"
+        }
+    created: 1631149812557
+    description: ""
+    headers:
+      - id: pair_138320c1eae9490ba5255a509bd12922
+        name: Content-Type
+        value: application/json
+    isPrivate: false
+    metaSortKey: -1631308597793.25
+    method: PUT
+    modified: 1635000450827
+    name: usuarios/logado/nome
+    parameters: []
+    parentId: wrk_d6d02cf8b85a4469b0c9a83cee454edd
+    settingDisableRenderRequestBody: false
+    settingEncodeUrl: true
+    settingFollowRedirects: global
+    settingRebuildPath: true
+    settingSendCookies: true
+    settingStoreCookies: true
+    url: http://localhost:8080/usuarios/logado/nome
+    _type: request
+  - _id: req_356656465ff2413b90872f3d1e8be99b
+    authentication:
+      token: "{{ auth_token }}"
+      type: bearer
+    body: {}
+    created: 1631146058535
+    description: ""
+    headers: []
+    isPrivate: false
+    metaSortKey: -1631308597787
+    method: GET
+    modified: 1634998564896
+    name: tarefas
+    parameters:
+      - description: ""
+        disabled: true
+        id: pair_995f6762e56a474b85cd4508d6e7b928
+        name: termo
+        value: TES
+    parentId: wrk_d6d02cf8b85a4469b0c9a83cee454edd
+    settingDisableRenderRequestBody: false
+    settingEncodeUrl: true
+    settingFollowRedirects: global
+    settingRebuildPath: true
+    settingSendCookies: true
+    settingStoreCookies: true
+    url: http://localhost:8080/tarefas
+    _type: request
+  - _id: req_1e313cc0bb70493183a0d19eaa0f30c5
+    authentication:
+      token: "{{ auth_token }}"
+      type: bearer
+    body: {}
+    created: 1634998610771
+    description: ""
+    headers: []
+    isPrivate: false
+    metaSortKey: -1631308597774.5
+    method: GET
+    modified: 1635002469372
+    name: tarefas (com termo de busca)
+    parameters:
+      - description: ""
+        disabled: false
+        id: pair_995f6762e56a474b85cd4508d6e7b928
+        name: termo
+        value: doc
+    parentId: wrk_d6d02cf8b85a4469b0c9a83cee454edd
+    settingDisableRenderRequestBody: false
+    settingEncodeUrl: true
+    settingFollowRedirects: global
+    settingRebuildPath: true
+    settingSendCookies: true
+    settingStoreCookies: true
+    url: http://localhost:8080/tarefas
+    _type: request
+  - _id: req_cb52f9268f8c4d8dbbf77f049b421ba8
+    authentication:
+      token: "{{ auth_token }}"
+      type: bearer
+    body:
+      mimeType: application/json
+      text: |-
+        {
+        	"descricao": "Terminar documento",
+        	"id_categoria": 1
+        }
+    created: 1631145951376
+    description: ""
+    headers:
+      - id: pair_06ceb0d8175f4796a4b374e5e2d9df48
+        name: Content-Type
+        value: application/json
+    isPrivate: false
+    metaSortKey: -1631308597768.25
+    method: POST
+    modified: 1635002392610
+    name: tarefas
+    parameters: []
+    parentId: wrk_d6d02cf8b85a4469b0c9a83cee454edd
+    settingDisableRenderRequestBody: false
+    settingEncodeUrl: true
+    settingFollowRedirects: global
+    settingRebuildPath: true
+    settingSendCookies: true
+    settingStoreCookies: true
+    url: http://localhost:8080/tarefas
+    _type: request
+  - _id: req_320de09669dd40e3855b9470250388df
+    authentication:
+      token: "{{ auth_token }}"
+      type: bearer
+    body:
+      mimeType: application/json
+      text: |-
+        {
+        	"descricao": "Tarefa alterada",
+        	"id_categoria": 2
+        }
+    created: 1632456010387
+    description: ""
+    headers:
+      - id: pair_d647766de71748de933b6ca0d6f315ed
+        name: Content-Type
+        value: application/json
+    isPrivate: false
+    metaSortKey: -1631308597767.4688
+    method: PATCH
+    modified: 1635002480372
+    name: tarefas/:id
+    parameters: []
+    parentId: wrk_d6d02cf8b85a4469b0c9a83cee454edd
+    settingDisableRenderRequestBody: false
+    settingEncodeUrl: true
+    settingFollowRedirects: global
+    settingRebuildPath: true
+    settingSendCookies: true
+    settingStoreCookies: true
+    url: http://localhost:8080/tarefas/3
+    _type: request
+  - _id: req_b15be59d24f84d6bbdbe61489f5b0e0c
+    authentication:
+      token: "{{ auth_token }}"
+      type: bearer
+    body: {}
+    created: 1632486158557
+    description: ""
+    headers: []
+    isPrivate: false
+    metaSortKey: -1631308597766.6875
+    method: DELETE
+    modified: 1635002491296
+    name: tarefas/:id
+    parameters: []
+    parentId: wrk_d6d02cf8b85a4469b0c9a83cee454edd
+    settingDisableRenderRequestBody: false
+    settingEncodeUrl: true
+    settingFollowRedirects: global
+    settingRebuildPath: true
+    settingSendCookies: true
+    settingStoreCookies: true
+    url: http://localhost:8080/tarefas/4
+    _type: request
+  - _id: req_ebc725aec2b44ab199de35316d8ec0f8
+    authentication:
+      token: "{{ auth_token }}"
+      type: bearer
+    body:
+      mimeType: application/json
+      text: |-
+        {
+        	"etiqueta": "youtube"
+        }
+    created: 1632506889494
+    description: ""
+    headers:
+      - id: pair_06ceb0d8175f4796a4b374e5e2d9df48
+        name: Content-Type
+        value: application/json
+    isPrivate: false
+    metaSortKey: -1631308597765.9062
+    method: POST
+    modified: 1635002515479
+    name: tarefas/:id/etiquetas
+    parameters: []
+    parentId: wrk_d6d02cf8b85a4469b0c9a83cee454edd
+    settingDisableRenderRequestBody: false
+    settingEncodeUrl: true
+    settingFollowRedirects: global
+    settingRebuildPath: true
+    settingSendCookies: true
+    settingStoreCookies: true
+    url: http://localhost:8080/tarefas/3/etiquetas
+    _type: request
+  - _id: req_7ba378dfa6bd44acb1552abb346d1092
+    authentication:
+      token: "{{ auth_token }}"
+      type: bearer
+    body: {}
+    created: 1632509178633
+    description: ""
+    headers: []
+    isPrivate: false
+    metaSortKey: -1631308597765.5156
+    method: DELETE
+    modified: 1635002552498
+    name: tarefas/:id/etiquetas/:descricao
+    parameters: []
+    parentId: wrk_d6d02cf8b85a4469b0c9a83cee454edd
+    settingDisableRenderRequestBody: false
+    settingEncodeUrl: true
+    settingFollowRedirects: global
+    settingRebuildPath: true
+    settingSendCookies: true
+    settingStoreCookies: true
+    url: http://localhost:8080/tarefas/3/etiquetas/na rua
+    _type: request
+  - _id: req_08b69523e0514454a13fc398bafec08f
+    authentication:
+      token: "{{ auth_token }}"
+      type: bearer
+    body: {}
+    created: 1631300798869
+    description: ""
+    headers: []
+    isPrivate: false
+    metaSortKey: -1631308597765.3203
+    method: POST
+    modified: 1635002567833
+    name: tarefas/:id/concluir
+    parameters: []
+    parentId: wrk_d6d02cf8b85a4469b0c9a83cee454edd
+    settingDisableRenderRequestBody: false
+    settingEncodeUrl: true
+    settingFollowRedirects: global
+    settingRebuildPath: true
+    settingSendCookies: true
+    settingStoreCookies: true
+    url: http://localhost:8080/tarefas/3/concluir
+    _type: request
+  - _id: req_604ed8ee246c4278b57f5664b8546d15
+    authentication:
+      token: "{{ auth_token }}"
+      type: bearer
+    body: {}
+    created: 1632457059081
+    description: ""
+    headers: []
+    isPrivate: false
+    metaSortKey: -1631308597765.2227
+    method: POST
+    modified: 1635002575172
+    name: tarefas/:id/reabrir
+    parameters: []
+    parentId: wrk_d6d02cf8b85a4469b0c9a83cee454edd
+    settingDisableRenderRequestBody: false
+    settingEncodeUrl: true
+    settingFollowRedirects: global
+    settingRebuildPath: true
+    settingSendCookies: true
+    settingStoreCookies: true
+    url: http://localhost:8080/tarefas/3/reabrir
+    _type: request
+  - _id: req_fdd9b77d56234b139dc4c5e0addb8457
+    authentication:
+      token: "{{ auth_token }}"
+      type: bearer
+    body:
+      mimeType: multipart/form-data
+      params:
+        - description: ""
+          disabled: false
+          fileName: /home/samuel/ufsc/material-pos-desenvolvimento-web-nodejs/exemplos/02_tarefas/README.md
+          id: pair_b1f8a4c6eb0141b1a097f15fa2a979bf
+          name: arquivo
+          type: file
+          value: ""
+    created: 1634081078054
+    description: ""
+    headers:
+      - id: pair_48477d49820849999ecbeab1af6f90bc
+        name: Content-Type
+        value: multipart/form-data
+    isPrivate: false
+    metaSortKey: -1631308597765.1738
+    method: POST
+    modified: 1635002586937
+    name: tarefas/:id/anexos
+    parameters: []
+    parentId: wrk_d6d02cf8b85a4469b0c9a83cee454edd
+    settingDisableRenderRequestBody: false
+    settingEncodeUrl: true
+    settingFollowRedirects: global
+    settingRebuildPath: true
+    settingSendCookies: true
+    settingStoreCookies: true
+    url: http://localhost:8080/tarefas/3/anexos
+    _type: request
+  - _id: req_eb2b2d2dd8084be4b1208c03b3b1833d
+    authentication:
+      token: "{{ auth_token }}"
+      type: bearer
+    body: {}
+    created: 1634084154734
+    description: ""
+    headers: []
+    isPrivate: false
+    metaSortKey: -1631308597765.1494
+    method: DELETE
+    modified: 1635002601691
+    name: tarefas/:id/anexos/:idAnexo
+    parameters: []
+    parentId: wrk_d6d02cf8b85a4469b0c9a83cee454edd
+    settingDisableRenderRequestBody: false
+    settingEncodeUrl: true
+    settingFollowRedirects: global
+    settingRebuildPath: true
+    settingSendCookies: true
+    settingStoreCookies: true
+    url: http://localhost:8080/tarefas/3/anexos/1
+    _type: request
+  - _id: req_14329e3aa406413a835623a5daffcedb
+    authentication:
+      token: "{{ auth_token }}"
+      type: bearer
+    body: {}
+    created: 1634084965970
+    description: ""
+    headers: []
+    isPrivate: false
+    metaSortKey: -1631308597765.1372
+    method: GET
+    modified: 1635002611701
+    name: tarefas/:id/anexos/:idAnexo
+    parameters: []
+    parentId: wrk_d6d02cf8b85a4469b0c9a83cee454edd
+    settingDisableRenderRequestBody: false
+    settingEncodeUrl: true
+    settingFollowRedirects: global
+    settingRebuildPath: true
+    settingSendCookies: true
+    settingStoreCookies: true
+    url: http://localhost:8080/tarefas/3/anexos/2
+    _type: request
+  - _id: req_78376f15a7db484f88415822b1d000fc
+    authentication:
+      token: "{{ auth_token }}"
+      type: bearer
+    body: {}
+    created: 1632510338876
+    description: ""
+    headers: []
+    isPrivate: false
+    metaSortKey: -1631308597765.125
+    method: GET
+    modified: 1634998827860
+    name: categorias
+    parameters:
+      - description: ""
+        disabled: true
+        id: pair_995f6762e56a474b85cd4508d6e7b928
+        name: termo
+        value: TES
+    parentId: wrk_d6d02cf8b85a4469b0c9a83cee454edd
+    settingDisableRenderRequestBody: false
+    settingEncodeUrl: true
+    settingFollowRedirects: global
+    settingRebuildPath: true
+    settingSendCookies: true
+    settingStoreCookies: true
+    url: http://localhost:8080/categorias
+    _type: request
+  - _id: req_f1206d50be884b37a94f31efaa20724d
+    authentication:
+      disabled: false
+      token: ""
+      type: bearer
+    body: {}
+    created: 1632510136552
+    description: ""
+    headers: []
+    isPrivate: false
+    metaSortKey: -1631308597763.5625
+    method: GET
+    modified: 1634999800702
+    name: etiquetas
+    parameters:
+      - description: ""
+        disabled: true
+        id: pair_995f6762e56a474b85cd4508d6e7b928
+        name: termo
+        value: TES
+    parentId: wrk_d6d02cf8b85a4469b0c9a83cee454edd
+    settingDisableRenderRequestBody: false
+    settingEncodeUrl: true
+    settingFollowRedirects: global
+    settingRebuildPath: true
+    settingSendCookies: true
+    settingStoreCookies: true
+    url: http://localhost:8080/etiquetas
+    _type: request
+  - _id: env_5c717a77c5f1e1f37f335615a0fc0ba97ce05da1
+    color: null
+    created: 1629840164067
+    data: {}
+    dataPropertyOrder: null
+    isPrivate: false
+    metaSortKey: 1629840164067
+    modified: 1629840164067
+    name: Base Environment
+    parentId: wrk_d6d02cf8b85a4469b0c9a83cee454edd
+    _type: environment
+  - _id: jar_5c717a77c5f1e1f37f335615a0fc0ba97ce05da1
+    cookies: []
+    created: 1629840164070
+    modified: 1629840164070
+    name: Default Jar
+    parentId: wrk_d6d02cf8b85a4469b0c9a83cee454edd
+    _type: cookie_jar
+  - _id: spc_712ea6827fb14b2d81758de366148b55
+    contentType: yaml
+    contents: ""
+    created: 1629840164011
+    fileName: UFSCar/2021
+    modified: 1629840164011
+    parentId: wrk_d6d02cf8b85a4469b0c9a83cee454edd
+    _type: api_spec
+  - _id: env_f5b257786a2d48f0b98d02b52cbd3b5f
+    color: null
+    created: 1634998411624
+    data:
+      auth_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJsb2dpbiI6ImFsZ3VlbSIsImV4cCI6MTYzNTAzNzk5MywiaWF0IjoxNjM1MDAxOTkzfQ._LrrYPfmzO5j7UZA_zbMQ7FbiFu_eyhbcxaBIyZ8Xwc
+    dataPropertyOrder:
+      "&":
+        - auth_token
+    isPrivate: false
+    metaSortKey: 1634998411624
+    modified: 1635002371131
+    name: Local
+    parentId: env_5c717a77c5f1e1f37f335615a0fc0ba97ce05da1
+    _type: environment
