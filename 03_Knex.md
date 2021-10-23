@@ -1048,7 +1048,7 @@ Existem outras abordagens além da unidade de trabalho para compartilhamento de 
 
 Um enorme benefício da unidade de trabalho, como veremos adiante, é a facilidade com que ela permite a implementação de testes unitários e de integração.
 
-Proposta de exercício: implemente o endpoint `DELETE /tarefas/{id}/etiquetas/{etiqueta}. Receba descrição e não o ID. Para o front end não queremos expor a chave primária da tabela de etiquetas. Se for o único uso da etiqueta, remova-a. Coloque tudo isso em uma unidade de trabalho.
+Proposta de exercício: implemente o endpoint `DELETE /tarefas/{id}/etiquetas/{etiqueta}`. Receba descrição e não o ID. Para o front end não queremos expor a chave primária da tabela de etiquetas. Se for o único uso da etiqueta, remova-a. Coloque tudo isso em uma unidade de trabalho.
 
 ```js
 router.delete('/:id/etiquetas/:descricao', comUnidadeDeTrabalho(), asyncWrapper(async (req, res) => {

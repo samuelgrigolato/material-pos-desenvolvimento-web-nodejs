@@ -256,7 +256,7 @@ router.delete('/:id/anexos/:idAnexo', comUnidadeDeTrabalho(), asyncWrapper(async
 }));
 ```
 
-E o download? O ponto de atenção aqui é perceber que o método `send` da resposta aceita não apenas string, mas também um `Blob`, que é um dos super tipos de `File`. Veja:
+E o download? O ponto de atenção aqui é perceber que existe um método chamado `download` no objeto da resposta que aceita um caminho de arquivo. Veja:
 
 ```js
 router.get('/:id/anexos/:idAnexo', comUnidadeDeTrabalho(), asyncWrapper(async (req, res) => {
