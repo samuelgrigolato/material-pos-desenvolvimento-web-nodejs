@@ -23,7 +23,7 @@ export async function autenticar (login, senha) {
   const res = await knex('usuarios')
     .where('login', login)
     .select('id', 'senha');
-  if (res.lenght === 0) {
+  if (res.length === 0) {
     throw new DadosOuEstadoInvalido('CredenciaisInvalidas', 'Credenciais inválidas.');
   }
   const usuario = res[0];
