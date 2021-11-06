@@ -22,8 +22,8 @@ Carga horária: 40 horas.
 * [01 - Node.js](01_Nodejs.md)
 * [02 - Express](02_Express.md)
 * [03 - Knex](03_Knex.md)
-* [04 - Stateless vs stateful](04_Stateless_vs_stateful.md)
-* [05 - Cache](05_Cache.md)
+* [04 - Finalizando a API](04_Finalizando_a_API.md)
+* [05 - Resumo teórico](05_Resumo_teórico.md)
 
 ## Gerando PDF
 
