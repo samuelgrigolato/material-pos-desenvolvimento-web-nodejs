@@ -1,0 +1,27 @@
+version: '3.2'
+
+services:
+  psql-db:
+    container_name: psql-db
+    image: postgres:13-alpine
+    ports:
+      - 5432:5432
+    environment:
+      POSTGRES_HOST_AUTH_METHOD: trust
+      POSTGRES_PASSWORD: 1234
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - dbdata:/var/lib/postgresql/data/pgdata
+  adminer-db:
+    image: adminer:4.8.1
+    restart: always
+    ports:
+      - 8083:8080
+    depends_on:
+      - psql-db
+    environment:
+      ADMINER_DEFAULT_SERVER: "psql-db"
+      ADMINER_DESIGN: "pepa-linha"
+
+volumes:
+  dbdata:
