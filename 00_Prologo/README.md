@@ -20,7 +20,7 @@ Isso é atingido seguindo as etapas abaixo:
 
 7. Introdução às formas de comunicação com bases de dados relacionais, fechando com mais detalhes no uso da biblioteca Knex. Exemplos práticos dos principais cenários de modelagem de dados;
 
-8. Evolução da API construída nas etapas anteriores, integrando com a API do serviço ChatGPT;
+8. Evolução da API construída nas etapas anteriores, incluindo a adição de upload de anexos, autenticação usando JWT e integração com ChatGPT;
 
 9. Introdução a testes automatizados com Jest.
 

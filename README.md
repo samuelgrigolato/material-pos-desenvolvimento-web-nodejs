@@ -14,8 +14,7 @@ Carga horária: 40 horas.
 
 * Trabalhando com dados usando Knex: Adicionar persistência de dados na nossa aplicação através do framework de construção de SQL Knex. Gerenciar a evolução da base de dados através da ferramenta nativa de migrações do Knex.
 
-* Servidores Stateless vs. Stateful: Análise conceitual de servidores stateless e servidores stateful, incluindo o conceito de sticky session. Desenvolvimento de mecanismo de autenticação
-totalmente stateless usando JWT.
+* Servidores Stateless vs. Stateful: Análise conceitual de servidores stateless e servidores stateful, incluindo o conceito de sticky session. Desenvolvimento de mecanismo de autenticação totalmente stateless usando JWT.
 
 * Adicionando uma camada de testes automatizados com Jest.
 
@@ -24,10 +23,12 @@ totalmente stateless usando JWT.
 * [00 - Prólogo](00_Prologo/README.md)
 * [01 - Node.js e JavaScript](01_Nodejs_e_JavaScript/README.md)
 * [02 - TypeScript](02_TypeScript/README.md)
-* [03 - Fastify](02_Fastify/README.md)
-* [04 - Knex](03_Knex.md)
-* [05 - Integração ChatGPT](05_Integracao_ChatGPT/README.md)
-* [06 - Testes automatizados](06_Testes_automatizados/README.md)
+* [03 - Fastify](03_Fastify/README.md)
+* [04 - Knex](04_Knex/README.md)
+* [05 - Anexos](05_Anexos/README.md)
+* [06 - Autenticação usando Json Web Token](06_Autenticacao_JWT/README.md)
+* [07 - Integração ChatGPT](07_Integracao_ChatGPT/README.md)
+* [08 - Testes automatizados](08_Testes_automatizados/README.md)
 * [99 - Resumo teórico](99_Resumo_teorico/README.md)
 
 ## Gerando PDF
