@@ -447,6 +447,8 @@ Para entender como isso funciona na prática, vamos desenvolver um back-end usan
 
 Crie uma pasta vazia e, dentro dela, um arquivo chamado `app.js`. Neste arquivo escreva o seguinte conteúdo:
 
+[Projeto 04_simples_listener_http](projetos/04_simples_listener_http/)
+
 ```js
 const http = require('http');
 const url = require('url');
@@ -480,7 +482,7 @@ $ http -v http://localhost:8080/\?nome\=Alguém
 
 Ou até mesmo o próprio navegador! Acesse `http://localhost:8080?nome=Alguém` e verifique.
 
-Proposta de exercício: implementar um endpoint que faça o mesmo papel do endpoint do exercício anterior. Use dados fictícios e um conjunto pequeno de moedas. Dica: use o switch `--proxy http://localhost:8080` na chamada do `http-server`. Se você tentar chamar diretamente poderá enfrentar problemas de segurança (CORS, abordaremos isso em aulas futuras).
+[Exercício 03_cambio_mock](exercicios/03_cambio_mock/README.md)
 
 ## Partes recorrentes e atributos de uma arquitetura de back-end
 
