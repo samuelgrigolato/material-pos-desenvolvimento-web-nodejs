@@ -108,6 +108,8 @@ Existem outros conceitos como Microtasks, as várias fases do ciclo de vida do N
 
 Mas e se eu precisar de threads? É possível, utilizando `worker_threads`. Note que dificilmente você vai precisar disso:
 
+[Projeto 01_workers](projetos/01_workers/)
+
 ```js
 const { Worker, isMainThread } = require('worker_threads');
 
@@ -124,7 +126,7 @@ if (isMainThread) {
 //for (let i = 0; i < 10000000000; i++) {};
 ```
 
-Proposta de exercício: desenvolva um script node que receba um número inteiro via linha de comando (dica: `process.argv[2]`), e imprima a soma dos números entre 1 e uma constante arbitrariamente grande (ex: 10000). Note que diferentemente do exemplo acima será necessário passar dados para os workers e receber mensagens de retorno. Para o primeiro basta mandar um `workerData` na chamada `new Worker`, e para o segundo é necessário usar `parentPort.postMessage`. Detalhes podem ser obtidos na documentação do Node: https://nodejs.org/api/worker_threads.html.
+[Exercício 01_soma_paralela](exercicios/01_soma_paralela/README.md)
 
 ## A linguagem JavaScript
 
