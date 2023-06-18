@@ -519,6 +519,6 @@ Por que usar Node.js? Essa pergunta deve sempre ser revisitada, pois na área de
 
 Mas e os pontos negativos?
 
-* A arquitetura do event loop e o modelo de thread única pode confundir e dificultar a resolução de problemas que exigem muito paralelismo, principalmente se houver muita comunicação entre as partes;
-* A grande quantidade de pacotes no ecossistema não significa que são todos pacotes de qualidade e mantidos, existe um processo de garimpo na escolha das suas dependências;
+* A arquitetura do event loop e o modelo de thread única podem confundir e dificultar a resolução de problemas;
+* A grande quantidade de pacotes no ecossistema não significa que são todos pacotes de qualidade e bem mantidos, existe a necessidade de um processo de garimpo na escolha das suas dependências;
 * A linguagem JavaScript é reconhecida pelas suas armadilhas, o que pode resultar em uma maior taxa de defeitos e/ou demora para estabilizar uma feature desenvolvida.
