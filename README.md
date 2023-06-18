@@ -6,24 +6,29 @@ Carga horária: 40 horas.
 
 ## Ementa
 
-* Introdução ao Node.js: Apresentação do JavaScript como alternativa de linguagem para desenvolvimento de APIs de dados. Análise da arquitetura baseada em eventos do Node.js, com foco nos benefícios de performance e concorrência trazidos por ela.
+* Introdução ao Node.js: Apresentação do JavaScript como alternativa de linguagem para desenvolvimento de APIs de dados. Também será apresentado o TS (TypeScript) que é um superconjunto sintático estrito de JavaScript que permite o desenvolvimento de aplicações web mais resilientes e robustas.
 
-* Desenvolvendo APIs de dados com Express: Aprofundamento no framework Express para o desenvolvimento de APIs de dados, buscando cobrir casos excepcionais como recebimento de arquivos (upload) e envio de imagens pré-processadas, além do CRUD básico.
+* Análise da arquitetura baseada em eventos do Node.js, com foco nos benefícios de performance e concorrência trazidos por ela.
 
-* Trabalhando com dados usando Knex: Adicionar persistência de dados na nossa aplicação através do framework de construção de SQL Knex. Gerenciar a evolução da base de dados através da ferramenta db-migrate.
+* Desenvolvendo APIs de dados com Fastify: Aprofundamento no framework Fastify para o desenvolvimento de APIs de dados, buscando cobrir casos excepcionais como recebimento de arquivos (upload) e envio de imagens pré-processadas, além do CRUD básico.
 
-* Servidores Stateless vs. Stateful: Análise conceitual de servidores stateless e servidores stateful, incluindo o conceito de sticky session. Desenvolvimento de mecanismo de autenticação totalmente stateless.
+* Trabalhando com dados usando Knex: Adicionar persistência de dados na nossa aplicação através do framework de construção de SQL Knex. Gerenciar a evolução da base de dados através da ferramenta nativa de migrações do Knex.
 
-* Usando cache para aumentar a performance da API: Apresentação do uso de cache em diversas camadas da aplicação e análise dos ganhos de performance obtidos.
+* Servidores Stateless vs. Stateful: Análise conceitual de servidores stateless e servidores stateful, incluindo o conceito de sticky session. Desenvolvimento de mecanismo de autenticação
+totalmente stateless usando JWT.
+
+* Adicionando uma camada de testes automatizados com Jest.
 
 ## Índice
 
-* [00 - Prólogo.js](00_Prologo.md)
-* [01 - Node.js](01_Nodejs.md)
-* [02 - Express](02_Express.md)
-* [03 - Knex](03_Knex.md)
-* [04 - Finalizando a API](04_Finalizando_a_API.md)
-* [05 - Resumo teórico](05_Resumo_teórico.md)
+* [00 - Prólogo](00_Prologo/README.md)
+* [01 - Node.js e JavaScript](01_Nodejs_e_JavaScript/README.md)
+* [02 - TypeScript](02_TypeScript/README.md)
+* [03 - Fastify](02_Fastify/README.md)
+* [04 - Knex](03_Knex.md)
+* [05 - Integração ChatGPT](05_Integracao_ChatGPT/README.md)
+* [06 - Testes automatizados](06_Testes_automatizados/README.md)
+* [99 - Resumo teórico](99_Resumo_teorico/README.md)
 
 ## Gerando PDF
 

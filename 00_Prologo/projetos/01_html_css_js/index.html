@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset='utf-8'>
+  <meta http-equiv='X-UA-Compatible' content='IE=edge'>
+  <title>Próximo unicórnio, confia!</title>
+  <meta name='viewport' content='width=device-width, initial-scale=1'>
+  <style>
+
+    ul {
+      display: flex;
+      flex-wrap: wrap;
+      list-style-type: none;
+      padding: 0;
+    }
+
+    li {
+      flex: 1;
+      background-color: #efefef;
+      margin: 10px;
+      padding: 20px;
+      border-radius: 25px;
+    }
+
+    .botao-comprar {
+      border: 0;
+      background-color: #fefefe;
+    }
+
+    .botao-comprar.destacado {
+      background-color: green;
+      font-weight: bold;
+      color: white;
+    }
+
+  </style>
+</head>
+<body>
+  <p>Veja as ofertas abaixo:</p>
+  <ul>
+    <li>
+      Carro X: R$ 100.000,00
+      <button
+        class="botao-comprar"
+        onmouseenter="onMouseEnterBtnComprar(event)"
+        onmouseleave="onMouseLeaveBtnComprar(event)"
+        onclick="onClickBtnComprar('X')"
+      >
+        Comprar
+      </button>
+    </li>
+    <li>
+      Carry Y: R$ 50.000,00
+      <button
+        class="botao-comprar"
+        onmouseenter="onMouseEnterBtnComprar(event)"
+        onmouseleave="onMouseLeaveBtnComprar(event)"
+        onclick="onClickBtnComprar('Y')"
+      >
+        Comprar
+      </button>
+    </li>
+  </ul>
+  <script>
+
+    function onMouseEnterBtnComprar(event) {
+      event.target.classList.add('destacado');
+    }
+
+    function onMouseLeaveBtnComprar(event) {
+      event.target.classList.remove('destacado');
+    }
+
+    function onClickBtnComprar(carro) {
+      if (confirm(`Confirma a compra do carro ${carro}?`)) {
+        window.location = 'https://www.google.com';
+      }
+    }
+
+  </script>
+</body>
+</html>
