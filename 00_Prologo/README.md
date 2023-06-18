@@ -62,6 +62,8 @@ Com esses atores em mente é possível definir os tipos de desenvolvimento back-
 
 Direcionando o foco para o desenvolvimento front-end, sem dúvida a primeira tecnologia a se aprender é o HTML. Essa linguagem de marcação é o alicerce de qualquer aplicação web, antiga ou moderna. Veja o exemplo abaixo:
 
+[Projeto 01_html_css_js](projetos/01_html_css_js/)
+
 ```html
 <!DOCTYPE html>
 <html>
@@ -93,6 +95,8 @@ Direcionando o foco para o desenvolvimento front-end, sem dúvida a primeira tec
 Salvando o conteúdo em um arquivo qualquer com extensão `.html` e direcionando um navegador web até ele é possível ver uma página. Os detalhes para entender exatamente o que é possível fazer com HTML serão abordados no próximo módulo.
 
 HTML não atua na estilização dos elementos, isso é papel de outra tecnologia, o CSS. Uma das maneiras de usar CSS é intejá-lo diretamente no código HTML, veja:
+
+[Projeto 01_html_css_js](projetos/01_html_css_js/)
 
 ```html
 <!DOCTYPE html>
@@ -148,6 +152,8 @@ HTML não atua na estilização dos elementos, isso é papel de outra tecnologia
 ```
 
 A terceira peça nesse quebra cabeça é o comportamento. Como reagir às ações do usuário na página? Por exemplo: como fazer com que o botão comprar só fique verde quando o mouse passar sobre ele? E como reagir ao clique no botão para solicitar que o usuário confirme a compra? Para isso existe o JavaScript. Note que ele também pode ser embutido nas páginas:
+
+[Projeto 01_html_css_js](projetos/01_html_css_js/)
 
 ```html
 <!DOCTYPE html>
@@ -292,6 +298,8 @@ Por fim abra o endereço `http://localhost:8080/seu-arquivo.html` no navegador e
 
 Ao invés de retornar tudo em uma única requisição, é possível separar o CSS e JavaScript em outros. Faça isso criando os arquivos `estilo.css` e `main.js` abaixo e adaptando o arquivo HTML para injetá-los:
 
+[Projeto 02_separando_css_js](projetos/02_separando_css_js/)
+
 ```css
 ul {
   display: flex;
@@ -322,16 +330,16 @@ li {
 
 ```js
 function onMouseEnterBtnComprar(event) {
-  event.target.className = "botao-comprar destacado";
+  event.target.classList.add('destacado');
 }
 
 function onMouseLeaveBtnComprar(event) {
-  event.target.className = "botao-comprar";
+  event.target.classList.remove('destacado');
 }
 
 function onClickBtnComprar(carro) {
   if (confirm(`Confirma a compra do carro ${carro}?`)) {
-    window.location = "https://www.google.com";
+    window.location = 'https://www.google.com';
   }
 }
 ```
@@ -388,6 +396,8 @@ Para entender melhor essa dinâmica vamos implementar uma integração manualmen
 
 Adicione agora no seu arquivo HTML criado anteriormente nessa seção uma seção com um campo texto, um botão e um span para mostrar o resultado:
 
+[Projeto 03_exemplo_fetch](projetos/03_exemplo_fetch/)
+
 ```html
   </ul>
   <div>
@@ -418,7 +428,7 @@ function buscarCep() {
 
 Você obviamente vai querer implementar um tratamento de erro melhor na sua aplicação, tanto para ajudar o desenvolvedor (mostrando detalhes do erro no console) quanto o usuário (mostrando uma indicação mais amigável e instruções do que ele pode fazer dali para frente).
 
-Proposta de exercício: implementar mais uma seção na página, onde o usuário informa um código de moeda (ex: `BRL`) e obtém uma lista de cotações usando a API pública `https://open.er-api.com/v6/latest/BRL` (note que BRL é o código da moeda e deve ser substituído pelo input do usuário). Mais detalhes dessa API: https://www.exchangerate-api.com/docs/free.
+[Exercício 02_cambio](exercicios/02_cambio/README.md)
 
 ### Back-end: a outra ponta da requisição HTTP
 

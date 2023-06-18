@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset='utf-8'>
+  <meta http-equiv='X-UA-Compatible' content='IE=edge'>
+  <title>Próximo unicórnio, confia!</title>
+  <meta name='viewport' content='width=device-width, initial-scale=1'>
+  <link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+  <p>Veja as ofertas abaixo:</p>
+  <ul>
+    <li>
+      Carro X: R$ 100.000,00
+      <button
+        class="botao-comprar"
+        onmouseenter="onMouseEnterBtnComprar(event)"
+        onmouseleave="onMouseLeaveBtnComprar(event)"
+        onclick="onClickBtnComprar('X')"
+      >
+        Comprar
+      </button>
+    </li>
+    <li>
+      Carry Y: R$ 50.000,00
+      <button
+        class="botao-comprar"
+        onmouseenter="onMouseEnterBtnComprar(event)"
+        onmouseleave="onMouseLeaveBtnComprar(event)"
+        onclick="onClickBtnComprar('Y')"
+      >
+        Comprar
+      </button>
+    </li>
+  </ul>
+  <div>
+    <input type="text" id="cep">
+    <button onclick="buscarCep()">Buscar CEP</button>
+    <span id="resultado"></span>
+  </div>
+  <script src="main.js"></script>
+</body>
+</html>
