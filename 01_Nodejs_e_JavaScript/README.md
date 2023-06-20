@@ -214,9 +214,6 @@ x = [ "a", "b", "c" ];
 for (let i = 0; i < x.length; i++) {
   console.log(i, x[i]);
 }
-for (let i in x) { // i aqui é STRING!!!!
-  console.log(i, x[i]);
-}
 for (let i in x) { // i aqui é STRING!!!! https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/for...in#array_iteration_and_for...in
   console.log(i, x[i]);
 }
@@ -272,13 +269,6 @@ function* pares () { // geradores
 x = pares();
 console.log(x.next(), x.next(), x.next());
 ```
-
-Proposta de exercício: implemente as seguintes funções:
-
-- `repetir<T>(vezes: number, elemento: T): T[]`
-- `repetir10<T>(elemento: T): T[]`
-- `*repetirInfinitamente<T>(elemento: T): generator<T>`
-- `*intercalarInfinitamente<T>(e1: T, e2: T): generator<T>`
 
 ### Hoisting e modo estrito
 
@@ -491,12 +481,7 @@ pessoa.dizerOi();
 console.log(pessoa.construirSomadorDeIdade()(5));
 ```
 
-Proposta de exercício: implementar, usando prototypes e classes, a seguinte estrutura:
-
-- Conta bancária: atributo `saldo` inicializado pelo construtor, função `sacar` (não é necessário tratar se existe saldo).
-- Conta investimento: estende a `Conta bancária` recebendo um atributo adicional chamado `rendimentoMensal`. Ganha um método `virarMes` que aplica a taxa de rendimento no saldo atual.
-
-Dicas: use a função `Object.setPrototypeOf(B.prototype, A.prototype)` para simular o `extends`. Use `B.call(this, param1, param2)` para simular o `super(param1, param2)`.
+[Exercício 02_classes](exercicios/02_classes/README.md)
 
 ### Datas
 
