@@ -594,13 +594,6 @@ try {
 }
 ```
 
-Proposta de exercício: implemente uma página HTML com dois campos, e um botão para somá-los. Apresente uma mensagem de erro caso não seja possível efetuar a soma pelos seguintes motivos:
-
-- Um ou os dois campos estão vazios;
-- Número inválido.
-
-Dica: coloque o código na própria tag script, para facilitar.
-
 ### Promises
 
 Observe este código desenvolvido anteriormente:
@@ -699,8 +692,6 @@ aguardarSegundos(5).then(() => console.log("terminou"));
 
 Esse processo é chamado de "promessificação" (promisify) e o Node possui inclusive um utilitário para fazer isso automaticamente, caso a função que usa callbacks siga algumas regras básicas: https://nodejs.org/dist/latest-v8.x/docs/api/util.html.
 
-Proposta de exercício: faça uma "callbackzação" (o contrário de promessificação) do método `fetch` no exercício que busca os dados de conversão de moeda (ou no exemplo que busca dados de CEP). A assinatura deve ficar assim: `fetchComCallback(url, callback)`. Callback é uma função que recebe dois parâmetros, o primeiro é o erro (ou `undefined`) e o segundo é o retorno esperado (caso de sucesso);
-
 ### Async/await
 
 E se você pudesse escrever exatamente aquele código síncrono, sem perder o comportamento assíncrono e toda a simplicidade do desenvolvimento single-thread? Isso é na verdade possível desde o surgimento das cláusulas `async` e `await`.
@@ -763,36 +754,6 @@ function buscarLogradouro(cep) {
 
 Note que a cláusula `await` pode ser utilizada em métodos que retornam `Promise`, eles não precisam necessariamente ser `async`.
 
-Proposta de exercício: faça um método que aguarda 3 segundos, gera um número aleatório entre 0 e 10, e repete até que o número aleatório seja >= 8, retornando (através da promessa de retorno principal) a soma dos valores gerados nas etapas intermediárias. Dica: use async/await na versão promessificada do `setTimeout`. A utilização deve ficar parecida com isso:
-
-```js
-const res = await gerarEnquantoMenor8();
-console.log(res); // num cenário onde os números foram 3, 6, 4 e 9 o res é 13
-
-gerarEnquantoMenor8().then(console.log); // também deve ser possível assim
-```
-
-Observe como é consideravelmente mais difícil ler a solução sem a sintaxe async/await.
-
-## Geradores async
-
-É possível também definir geradores assíncronos. Veja:
-
-```js
-function aguardarSegundos (segundos) {
-  return new Promise(function (resolve, _reject) {
-    setTimeout(resolve, segundos * 1000);
-  });
-}
-
-async function* gerarInfinitamente (valorMaximo) {
-  while (true) {
-    await aguardarSegundos(3);
-    yield Math.ceil(Math.random() * valorMaximo);
-  }
-}
-```
-
 ## Módulos (import/export)
 
 Voltando as atenções agora ao Node.js, como dividir o código-fonte em vários arquivos ou "módulos"? Algumas linguagens chamam de pacote, outras de namespace, mas o objetivo é sempre o mesmo: criar um mecanismo que permita o aparecimento de um ecossistema de bibliotecas e que também facilite a manutenção da base de código conforme ele cresce.
@@ -825,7 +786,15 @@ const calculadora = require('./calculadora');
 console.log(calculadora.somar(3, 5));
 ```
 
-Agora com ES6:
+Agora vamos converter para ES6. Note que para conseguir executar após as alterações, é necessário criar um arquivo chamado `package.json` junto com o `app.js`, com o seguinte conteúdo:
+
+```json
+{
+  "type": "module"
+}
+```
+
+Discutiremos mais sobre este arquivo no módulo sobre `Fastify`. Além disso, discutiremos sobre uma alternativa mais abaixo. Agora altere o arquivo `calculadora/somar.js`:
 
 ```js
 export default function (a, b) {
@@ -836,31 +805,27 @@ export default function (a, b) {
 Arquivo `calculadora/index.js`:
 
 ```js
-export { default as somar } from './somar';
+export { default as somar } from './somar.js';
 ```
 
 Arquivo `app.js`:
 
 ```js
-import { somar } from './calculadora'; // o "explode" pode ser feito na versão sem ES6 também, usando "require" (CommonJS).
+import { somar } from './calculadora/index.js'; // o "explode" pode ser feito na versão sem ES6 também, usando "require" (CommonJS).
 
 console.log(somar(3, 5));
 ```
 
-Note que o uso de export/import só saiu do status experimental no Node.js 14.
+Note que o uso de export/import só saiu do status experimental no Node.js 14. Ao invés de usar o `package.json`, uma outra maneira de ativar o módulo ES6 é usando a extensão `.mjs` nos arquivos. Além disso, observe que para importar os módulos tivemos que usar o nome completo, incluindo a extensão, o que não ocorre em projetos que usam `babel` e/ou `TypeScript` na etapa de transpilação.
 
-## Juntando tudo isso (projeto de exemplo e exercício)
+## Juntando tudo isso
 
 Para encerrar esse processo todo vamos implementar um projeto com as seguintes funcionalidades:
 
-- Ler um arquivo do disco com milhares de números aleatórios;
-- Distribuir esse arquivo para uma série de processos filhos (em modo cluster, diferente do modo thread);
-- Calcular a quantidade de números pares;
-- Somar os resultados e imprimir no final.
+- Abrir uma porta para receber requisições HTTP
+- Distribuir as requisições recebidas usando o módulo `cluster`
 
-Com isso veremos o uso de dois módulos novos: `cluster` e `fs`, poderemos analisar novamente como isso impacta no aproveitamento de hardware em operações intensivas de CPU. Poderemos por fim comparar como essa estratégia é útil para servidores HTTP.
-
-O primeiro passo é gerar e armazenar um arquivo com muitas palavras aleatórias. Crie uma pasta específica para o projeto, e dentro dela crie um arquivo `package.json` (veremos detalhes na próxima seção) com o seguinte conteúdo:
+Comece criando um arquivo `package.json` para definir o uso de módulos ES6:
 
 ```json
 {
@@ -868,87 +833,109 @@ O primeiro passo é gerar e armazenar um arquivo com muitas palavras aleatórias
 }
 ```
 
-E então implemente a ferramenta no arquivo `gerador.js`:
+Agora crie um arquivo `server.js`:
 
 ```js
-import { open } from 'fs/promises';
 
+import cluster from 'cluster';
 
-async function main () {
-  let fd;
+const WORKER_COUNT = 4;
+
+if (cluster.isPrimary) {
+
+  console.log('Primary');
+
+  const workers = [];
+  for (let i = 0; i < WORKER_COUNT; i++) {
+    workers.push(cluster.fork({
+      WORKER_ID: i
+    }));
+  }
+
+} else {
+
+  console.log(`Worker #${process.env.WORKER_ID}`);
+
+  cluster.worker.kill();
+
+}
+```
+
+A ideia é então combinarmos o módulo cluster com o módulo `http`, para melhorar a capacidade do nosso servidor em atender requisições paralelas:
+
+```js
+
+import cluster from 'cluster';
+import http from 'http';
+
+const WORKER_COUNT = 2;
+
+if (cluster.isPrimary) {
+
+  console.log('Primary');
+
+  const workers = [];
+  for (let i = 0; i < WORKER_COUNT; i++) {
+    workers.push(cluster.fork({
+      WORKER_ID: i
+    }));
+  }
+
+} else {
+
+  const wid = process.env.WORKER_ID;
+
+  console.log(`Worker #${wid}`);
+
+  const server = http.createServer(function (req, resp) {
+    console.log(`W#${wid}: processando`);
+    // essa versão dá pouca diferença, mesmo
+    // com um único worker, pois o event loop
+    // não fica travado
+    // setTimeout(function () {
+    //   resp.write('Olá!');
+    //   resp.end();
+    // }, Math.random() * 3000 + 1000);
+    // essa versão apresenta uma diferença
+    // muito grande! pois o código síncrono
+    // trava o event loop de 1 único worker
+    if (Math.floor(Math.random() * 2) === 0.0) {
+      for (let i = 0; i < 5000000000; i++) {};
+    }
+    resp.write('Olá!');
+    resp.end();
+  });
+
+  server.listen(8080);
+
+}
+```
+
+Crie também um arquivo `client.js` para nos ajudar a exercitar este servidor:
+
+```js
+async function dizerOi(i) {
   try {
-    fd = await open('resultado.txt', 'a');
-    for (let i = 0; i < 1000; i++) {
-      const numeros = [];
-      for (let j = 0; j < 100; j++) {
-        numeros.push(Math.ceil(Math.random() * 100000));
-      }
-      await fd.appendFile(numeros.join('\n') + '\n');
+    const resp = await fetch(`http://localhost:8080/?i=${i}`);
+    if (resp.ok) {
+      console.log(`#${i}: tudo certo`);
+    } else {
+      console.log(`#${i}: deu erro http ${resp.status}`);
     }
-  } finally {
-    if (fd) {
-      await fd.close();
-    }
+  } catch (err) {
+    console.log(`#${i}: deu erro ${err.message}`);
+  }
+}
+
+function main() {
+  for (let i = 0; i < 10; i++) {
+    dizerOi(i);
   }
 }
 
 main();
 ```
 
-Agora crie outro arquivo chamado `contador-de-pares.js` que fará o processo clusterizado:
+Note como a versão com setTimeout aleatório praticamente não é afetada com o acréscimo de workers. Isso ocorre por conta da forma como o Event Loop funciona. Quando existem tarefas pesadas rodando nele, no entanto, o uso do módulo cluster passa a ser muito útil.
 
-```js
-import cluster from 'cluster';
-import process from 'process';
-import { createInterface } from 'readline';
-import { createReadStream } from 'fs';
-
-const WORKERS = 8;
-
-if (cluster.isPrimary) {
-
-  let recebidos = 0;
-  let total = 0;
-  for (let i = 0; i < WORKERS; i++) {
-    const worker = cluster.fork({ IDX: i });
-    worker.on('message', parcial => {
-      worker.kill();
-      total += parcial;
-      recebidos++;
-      if (recebidos === WORKERS) {
-        console.log('total', total);
-      }
-    });
-  }
-
-} else {
-
-  const idx = parseInt(process.env.IDX);
-  console.log(`worker ${idx}...`)
-
-  const readStream = createReadStream('resultado.txt');
-  const lineReader = createInterface(readStream);
-
-  let parcial = 0;
-  let indiceDaLinha = 0;
-  for await (const linha of lineReader) {
-    if (linha !== "") {
-      if (indiceDaLinha % WORKERS === idx) {
-        const numero = parseInt(linha);
-        if (numero % 2 === 0) {
-          parcial += 1;
-        }
-      }
-    }
-    indiceDaLinha++;
-  }
-
-  console.log('parcial', idx, parcial);
-  cluster.worker.send(parcial);
-
-}
-```
-
-Como esse exemplo é muito simples (o gargalo é IO e não CPU) ele vai executar mais rápido com 1 worker, mas note que com 4 ou mais ele aproveita melhor as CPUs disponíveis na máquina.
-
-Proposta de exercício: incremente o exemplo básico de endpoint HTTP de modo que funcione por trás de um cluster. Use também o módulo `https` para implementar uma chamada real para o serviço ao invés de simular o retorno. Vá promessificando e refatorando o código para usar async/await.
+Antes de finalizar, vamos consumir o parâmetro `i` e terminar com um exercício.
