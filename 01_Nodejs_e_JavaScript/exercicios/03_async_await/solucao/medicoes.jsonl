@@ -1,0 +1,4 @@
+{ "ts": "2023-06-02T10:30:00Z", "tipo": "temperatura", "valor": 30.25 }
+{ "ts": "2023-07-03T10:30:00Z", "tipo": "temperatura", "valor": 30.25 }
+{ "ts": "2023-08-04T10:30:00Z", "tipo": "temperatura", "valor": 20.25 }
+{ "ts": "2023-08-04T10:30:00Z", "tipo": "vento", "valor": 120 }

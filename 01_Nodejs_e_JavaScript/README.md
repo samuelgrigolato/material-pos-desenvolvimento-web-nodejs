@@ -818,6 +818,8 @@ console.log(somar(3, 5));
 
 Note que o uso de export/import só saiu do status experimental no Node.js 14. Ao invés de usar o `package.json`, uma outra maneira de ativar o módulo ES6 é usando a extensão `.mjs` nos arquivos. Além disso, observe que para importar os módulos tivemos que usar o nome completo, incluindo a extensão, o que não ocorre em projetos que usam `babel` e/ou `TypeScript` na etapa de transpilação.
 
+[Exercício 03_async_await](exercicios/03_async_await/README.md)
+
 ## Juntando tudo isso
 
 Para encerrar esse processo todo vamos implementar um projeto com as seguintes funcionalidades:
@@ -864,11 +866,12 @@ if (cluster.isPrimary) {
 A ideia é então combinarmos o módulo cluster com o módulo `http`, para melhorar a capacidade do nosso servidor em atender requisições paralelas:
 
 ```js
-
 import cluster from 'cluster';
 import http from 'http';
+import querystring from 'querystring';
 
-const WORKER_COUNT = 2;
+const WORKER_COUNT = 4;
+
 
 if (cluster.isPrimary) {
 
@@ -888,7 +891,9 @@ if (cluster.isPrimary) {
   console.log(`Worker #${wid}`);
 
   const server = http.createServer(function (req, resp) {
-    console.log(`W#${wid}: processando`);
+    const url = req.url;
+    const params = querystring.parse(url.substring(url.indexOf('?') + 1));
+    console.log(`W#${wid}: processando i=${params.i}`);
     // essa versão dá pouca diferença, mesmo
     // com um único worker, pois o event loop
     // não fica travado
@@ -902,7 +907,7 @@ if (cluster.isPrimary) {
     if (Math.floor(Math.random() * 2) === 0.0) {
       for (let i = 0; i < 5000000000; i++) {};
     }
-    resp.write('Olá!');
+    resp.write(`Olá, ${params.i}!`);
     resp.end();
   });
 
@@ -918,7 +923,8 @@ async function dizerOi(i) {
   try {
     const resp = await fetch(`http://localhost:8080/?i=${i}`);
     if (resp.ok) {
-      console.log(`#${i}: tudo certo`);
+      const text = await resp.text();
+      console.log(`#${i}: tudo certo '${text}'`);
     } else {
       console.log(`#${i}: deu erro http ${resp.status}`);
     }
@@ -937,5 +943,3 @@ main();
 ```
 
 Note como a versão com setTimeout aleatório praticamente não é afetada com o acréscimo de workers. Isso ocorre por conta da forma como o Event Loop funciona. Quando existem tarefas pesadas rodando nele, no entanto, o uso do módulo cluster passa a ser muito útil.
-
-Antes de finalizar, vamos consumir o parâmetro `i` e terminar com um exercício.

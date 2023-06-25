@@ -1,7 +1,8 @@
 import cluster from 'cluster';
 import http from 'http';
+import querystring from 'querystring';
 
-const WORKER_COUNT = 2;
+const WORKER_COUNT = 4;
 
 
 if (cluster.isPrimary) {
@@ -22,7 +23,9 @@ if (cluster.isPrimary) {
   console.log(`Worker #${wid}`);
 
   const server = http.createServer(function (req, resp) {
-    console.log(`W#${wid}: processando`);
+    const url = req.url;
+    const params = querystring.parse(url.substring(url.indexOf('?') + 1));
+    console.log(`W#${wid}: processando i=${params.i}`);
     // essa versão dá pouca diferença, mesmo
     // com um único worker, pois o event loop
     // não fica travado
@@ -36,7 +39,7 @@ if (cluster.isPrimary) {
     if (Math.floor(Math.random() * 2) === 0.0) {
       for (let i = 0; i < 5000000000; i++) {};
     }
-    resp.write('Olá!');
+    resp.write(`Olá, ${params.i}!`);
     resp.end();
   });
 
