@@ -1,0 +1,2 @@
+var mensagem = 'olá!';
+mensagem();

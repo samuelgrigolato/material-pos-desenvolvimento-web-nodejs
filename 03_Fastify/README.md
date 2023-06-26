@@ -1,17 +1,6 @@
 # Fastify
 
-Antes de iniciar o desenvolvimento de APIs, vamos estabelecer um mecanismo efetivo para compartilhamento do código-fonte construído durante a explicação.
-
-Uma branch será criada neste repositório com o nome `exemplos-aula-AAAAMMDD`. Faça um clone do repositório e efetue checkout dessa branch (você pode usar SSH se preferir, lembre-se também de substituir AAAAMMDD):
-
-```
-$ git clone https://github.com/samuelgrigolato/material-pos-desenvolvimento-web-nodejs.git
-$ git checkout -b exemplos-aula-AAAAMMDD
-```
-
-Sempre que um push for efetuado nessa branch, execute um `git pull` para recuperar as atualizações.
-
-Voltando agora ao desenvolvimento de APIs, iniciando com a definição do domínio/solução que iremos desenvolver:
+Vamos começar com a definição do domínio/solução que iremos desenvolver:
 
 > Um controle de tarefas (TODO), com suporte para anexos, etiquetas, categorias, subtarefas. Tarefas e subtarefas podem ser concluídas e reabertas. A aplicação deve ficar protegida por autenticação e cada usuário deve ter acesso apenas ao seu próprio conjunto de tarefas.
 
