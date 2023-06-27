@@ -8,7 +8,7 @@ A API será desenvolvida usando endpoints HTTP no estilo "REST" (cuidado com o c
 
 ## História do Fastify
 
-REESCREVER
+Descrito como "Fast and low overhead web framework, for Node.js", o Fastify é um framework desenvolvido desde 2016, inspirado em partes pelo Express e pelo Hapi.
 
 ## Primeiro endpoint, cadastrando uma tarefa
 
@@ -29,38 +29,82 @@ Crie um diretório vazio, e dentro dele crie um arquivo chamado `package.json` c
 }
 ```
 
-Mais a frente veremos com detalhes o papel do Node Package Manager (NPM) no processo. Instale agora o Express usando o seguinte comando:
+Mais a frente veremos com detalhes o papel do Node Package Manager (NPM) no processo. Instale agora o Fastify usando o seguinte comando:
 
 ```sh
-$ npm install express
+$ npm install fastify
+```
+
+Instale também o pacote de tipos TypeScript para código Node 18:
+
+```sh
+$ npm install @types/node@18
 ```
 
 Veja o que mudou no `package.json` e também note que apareceu um arquivo gigante chamado `package-lock.json`. Ambos serão explicados posteriormente.
 
 Caso esteja em um repositório git, lembre-se de criar um arquivo `.gitignore`, caso ainda não tenha, e adicionar uma linha com o texto `node_modules` nele, para evitar versionar as dependências do Node.js junto com o código-fonte do seu projeto.
 
-Uma vez com o Express instalado, é possível configurá-lo. Crie um arquivo `app.js` com o seguinte conteúdo:
+Instale agora o `typescript` como ferramenta de desenvolvimento:
+
+```sh
+$ npm install --save-dev typescript
+```
+
+Configure um novo projeto TypeScript neste diretório:
+
+```sh
+$ npx tsc --init
+```
+
+A documentação do Fastify sugere usar `es2017` como target, para evitar notificações de descontinuação. Então façamos isso (arquivo `tsconfig.json`):
+
+```json
+  "target": "es2017",
+```
+
+Agora adicione os seguintes scripts no `package.json`, para facilitar no desenvolvimento:
+
+```json
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node app.js"
+  },
+```
+
+Uma vez com o Fastify instalado, é possível utilizá-lo. Crie um arquivo `app.ts` com o seguinte conteúdo:
 
 ```js
-import express from 'express';
+import fastify from 'fastify';
 
-const app = express();
+const app = fastify({ logger: true });
 
-app.listen(8080);
+app.get('/hello', async (_req, _resp) => {
+  return { hello: 'world' };
+});
+
+async function main() {
+  try {
+    await app.listen({ port: 3000 });
+  } catch (err) {
+    app.log.error(err);
+    process.exit(1);
+  }
+}
+main();
 ```
 
-Note que esse estilo de `import` só funciona por conta da definição `type` igual a `module` que colocamos no `package.json`.
-
-É possível rodar a aplicação desse jeito, usando o seguinte comando:
+É possível construir e rodar a aplicação desse jeito, usando o seguintes comandos:
 
 ```sh
-$ node app.js
+$ npm run build
+$ npm run start
 ```
 
-Obviamente não é possível fazer nada de útil com ela, mas é possível verificar que ela pelo menos retorna 404 para qualquer tipo de requisição válida:
+É possível ainda testá-la usando cUrl/HTTPie/Postman:
 
 ```sh
-$ curl -v http://localhost:8080/qualquer-coisa
+$ curl -v http://localhost:3000/hello
 ```
 
 Adicione o seguinte trecho para responder a uma rota específica (rota é uma combinação de método HTTP com caminho):
