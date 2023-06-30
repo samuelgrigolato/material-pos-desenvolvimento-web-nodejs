@@ -192,161 +192,121 @@ Existem algumas preocupações recorrentes no desenvolvimento de APIs:
 
 - *Segurança:* normalmente uma API vai precisar autenticar e autorizar acesso dos seus usuários.
 
-## Melhorando o tratamento de erros
+## Hooks
 
-Praticamente todos os endpoints que desenvolveremos serão assíncronos, então faz sentido termos uma solução genérica que evite dor de cabeça no tratamento de erros. Pelo menos alguma coisa que evita o cenário mais catastrófico onde uma rejeição não tratada derruba todo nosso servidor.
-
-Infelizmente o Express não oferece nenhum suporte para funções que retornam `Promise` (lembra-se do `Fastify`? Ele fornece!), mas é possível desenvolver um método que recebe uma função assíncrona e retorna uma função compatível com o framework. Crie um arquivo chamado `async-wrapper.js`:
+Algumas características das nossas APIs devem se aplicar de forma homogênea independentemente do endpoint. Um exemplo é a autenticação, visto que não faz sentido duplicarmos o código que autentica nosso usuário em todos os endpoints. Para esse tipo de situação o Fastify oferece o conceito de `hooks`. Para verificar seu funcionamento, crie um novo diretório, dentro dele um arquivo `app.js` (não se esqueça também do `package.json`, `tsconfig.json` e `.gitignore`) e adicione o código abaixo:
 
 ```js
-export default function (asyncFn) {
-  return function (req, res, next) {
-    asyncFn(req, res, next).catch(next);
-  };
-}
-```
+import fastify from 'fastify';
 
-E use essa função nos endpoints:
+const app = fastify({ logger: true });
 
-```js
-import express from 'express';
-
-import { cadastrarTarefa, consultarTarefas } from './tarefas/model.js';
-import asyncWrapper from './async-wrapper.js';
-
-const app = express();
-app.use(express.json()); // isso é necessário para que o corpo seja processado
-
-app.post('/tarefas', asyncWrapper(async (req, res) => {
-  const tarefa = req.body;
-  const id = await cadastrarTarefa(tarefa)
-  res.send({ id });
-}));
-
-app.get('/tarefas', asyncWrapper(async (req, res) => {
-  const termo = req.query.termo;
-  const tarefas = await consultarTarefas(termo)
-  res.send(tarefas);
-}));
-
-app.listen(8080);
-```
-
-Force um erro e veja o que acontece.
-
-Note que ainda temos o que melhorar: o erro está sendo retornado em HTML ao invés de JSON, o que não faz muito sentido para uma API. Vamos revisitar isso quando estivermos falando de Middlewares.
-
-## Middlewares
-
-Algumas características das nossas APIs devem se aplicar de forma homogênea independentemente do endpoint. Um exemplo é a autenticação, visto que não faz sentido duplicarmos o código que autentica nosso usuário em todos os endpoints. Para esse tipo de situação o Express oferece o conceito de `middleware`. Para verificar seu funcionamento, crie um novo diretório, dentro dele um arquivo `app.js` e adicione o código abaixo:
-
-```js
-import express from 'express';
-
-const app = express();
-
-app.use((_req, res, next) => {
-  console.log('middleware1-inicio');
-  next();
-  // console.log('middleware1-fim');
-  res.on("finish", () => {
-    console.log('middleware1-fim');
-  });
+app.addHook('onRequest', async (_req, _res) => {
+  console.log('onRequestHook');
 });
 
-app.use((_req, _res, next) => {
-  console.log('middleware2-inicio');
-  setTimeout(() => {
-    next();
-    console.log('middleware2-fim'); // não vai fazer o que você espera se for async
-  }, Math.random() * 1000);
+app.addHook('onSend', async (_req, _res) => {
+  console.log('onSendHook');
 });
 
-app.get('/usuario', (_req, res) => {
+app.get('/usuario', async (_req, res) => {
   console.log('endpoint-inicio');
-  res.send({
+  await res.send({
     login: 'alguem',
     nome: 'Alguém'
   });
   console.log('endpoint-fim');
 });
 
-app.listen(8080);
-```
-
-As funções passadas para a chamada `app.use()` são os middlewares. Também é possível utilizar middlewares direto nos endpoints, e também no nível dos roteadores (veremos mais sobre eles em breve). Existe um segundo tipo de middleware, chamado sempre que um erro ocorre na task que está executando a requisição, ou se a função `next` for chamada com um parâmetro diferente da string `route`. Veja:
-
-```js
-app.get('/usuario', (req, res) => {
-  console.log('endpoint-inicio');
-  if (req.query.forcarErro === "X") {
-    throw Error('Erro forçado.');
+async function main() {
+  try {
+    await app.listen({ port: 3000 });
+  } catch (err) {
+    app.log.error(err);
+    process.exit(1);
   }
-  res.send({
-    login: 'alguem',
-    nome: 'Alguém'
-  });
-  console.log('endpoint-fim');
+}
+main();
+```
+
+O Fastify oferece uma grande quantidade de hooks. Veja o ciclo de vida completo de uma requisição [aqui](https://fastify.dev/docs/latest/Reference/Lifecycle).
+
+Uma das funcionalidades mais poderosas dos hooks é a interceptação de uma requisição. Com ela, é possível interromper o processamento normal enviando uma resposta de forma prematura. Isso é feito simplesmente chamando o método `reply.send` dentro do hook. Veja:
+
+```ts
+app.addHook('onRequest', async (_req, res) => {
+  console.log('onRequestHook');
+  res.status(403).send({ error: 'Não autorizado' });
 });
 ```
 
-Por padrão o middleware que cuida dos erros vai montar uma resposta com status 500 e uma página HTML. Podemos mudar isso introduzindo um novo middleware (note os 4 parâmetros na assinatura, é assim que o Express sabe que você quer tratar erros e não o fluxo normal):
+Note que os hooks em seguida no ciclo de vida, bem como o handler principal, *não* são executados neste caso. Todo o pipeline de processamento da resposta é executado normalmente, no entanto.
 
-```js
-app.use((err, _req, res, _next) => {
-  res.status(500).send({
-    razao: err.message
-  });
-});
-```
+## Plugins
 
-Note que essa definição precisa ser feita depois do endpoint, não antes.
+Uma outra funcionalidade importante do Fastify é a sua estrutura de plugins. Com ela é possível injetar novas funcionalidades na sua aplicação.
 
-Proposta de exercício: desenvolva um Middleware que registre um log de todas as requisições que chegarem na sua aplicação, com o seguinte formato:
-
-> YYYY-MM-DDTHH:MM:SS.iiiZ [MÉTODO] /caminho
-
-Bônus: ao invés de registrar na entrada, registre na resposta, adicionando o status da resposta no formato:
-
-> YYYY-MM-DDTHH:MM:SS.iiiZ [MÉTODO] /caminho 200
-
-## Middlewares embutidos
-
-O Express fornece um conjunto de [middlewares embutidos](https://expressjs.com/en/guide/using-middleware.html#middleware.built-in):
-
-- `express.static`: define um caminho de URL e um diretório para ser servido diretamente como conteúdo estático. Útil para publicar arquivos HTML, JS, CSS e imagens;
-- `express.json`: lê todo o corpo da requisição e tenta convertê-lo em JSON;
-- `express.urlencoded`: lê todo o corpo de uma requisição de formulário e o converte.
-
-Existem também muitos [middlewares de código aberto](https://expressjs.com/en/resources/middleware.html) disponíveis para uso.
-
-Um exemplo é o middleware para habilitar CORS na sua API. Vamos instalá-lo na nossa API de tarefas (lembre-se de voltar para o diretório correto):
+Um bom exemplo é o plugin `fastify-static`. Ele é usado para facilitar a disponibilização de recursos estáticos através da sua API. Sua instalação é simples e feita através do registro de um plugin na instância fastify. Primeiro instale a dependência no projeto:
 
 ```sh
-$ npm i cors
+$ npm install @fastify/static
 ```
 
-```js
-const app = express();
-app.use(cors());
-app.use(express.json());
-```
+Agora instale-o no arquivo `app.js`:
 
-Podemos aproveitar este momento para instalar um middleware de tratamento de erro:
+```ts
+import fastifyStatic from '@fastify/static';
 
-```js
-app.get('/tarefas', asyncWrapper(async (req, res) => {
-  const termo = req.query.termo;
-  const tarefas = await consultarTarefas(termo)
-  res.send(tarefas);
-}));
-
-app.use((err, _req, res, _next) => {
-  const razao = err.message || err;
-  res.status(500).send({ razao });
+app.register(fastifyStatic, {
+  root: `${__dirname}/public`,
+  prefix: '/public/',
 });
+```
 
-app.listen(8080);
+Crie uma pasta chamada `public` e um arquivo `teste.txt` dentro dela, com qualquer conteúdo.
+
+Suba o servidor e teste com a seguinte chamada (lembre-se de adaptar de acordo com o cliente HTTP de sua preferência):
+
+```
+$ http get http://localhost:3000/public/teste.txt
+```
+
+Desenvolver plugins customizados é bem simples. O primeiro parâmetro da chamada `app.register` precisa apenas ser uma função que recebe três parâmetros: `fastify`, `opts` e `done` (este último pode ser omitido se a função for `async`, assim como handlers). Veja um exemplo de plugin que registra um simples ping:
+
+```ts
+app.register(async function (instance, _opts) {
+
+  instance.get('/ping', async (_req, res) => {
+    await res.send('pong\n');
+  });
+
+});
+```
+
+Vamos agora adicionar um hook `onRequest` dentro do plugin:
+
+```ts
+app.register(async function (instance, _opts) {
+
+  instance.addHook('onRequest', async (_req, res) => {
+    console.log('onRequestHook-dentro do plugin');
+  });
+
+  // ...
+
+});
+```
+
+Repare que o hook é executado quando a rota do ping é chamada, mas não o é quando a rota é GET /usuario. Isso acontece pois cada plugin no Fastify cria um *contexto de encapsulamento*. É possível evitar isso usando o plugin `fastify-plugin` (sim, nome confuso) na hora de registrar o seu plugin. Veja a diferença:
+
+```sh
+$ npm i fastify-plugin
+```
+
+```ts
+import fastifyPlugin from 'fastify-plugin';
+
+app.register(fastifyPlugin(async function (instance, _opts) {
 ```
 
 ## Autenticação Stateful
