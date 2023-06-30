@@ -4,10 +4,6 @@ import { cadastrarTarefa, DadosTarefa } from './tarefas/model';
 
 const app = fastify({ logger: true });
 
-app.get('/hello', async (_req, _resp) => {
-  return { hello: 'world' };
-});
-
 app.post('/tarefas', async (req, resp) => {
   const dados = req.body as DadosTarefa;
   const id = await cadastrarTarefa(dados);

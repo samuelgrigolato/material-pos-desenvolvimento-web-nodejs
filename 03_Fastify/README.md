@@ -94,7 +94,7 @@ async function main() {
 main();
 ```
 
-É possível construir e rodar a aplicação desse jeito, usando o seguintes comandos:
+É possível construir e rodar a aplicação desse jeito, usando os seguintes comandos:
 
 ```sh
 $ npm run build
@@ -107,62 +107,43 @@ $ npm run start
 $ curl -v http://localhost:3000/hello
 ```
 
-Adicione o seguinte trecho para responder a uma rota específica (rota é uma combinação de método HTTP com caminho):
+Observe que no Fastify, assim como no módulo `http` do Node.js, a resposta é enviada através de uma chamada no objeto `res` (segundo parâmetro) ou retornando algo da função processadora. Vamos simular um cadastro de tarefas criando uma camada de modelo que expõe essa funcionalidade. Crie um arquivo chamado `tarefas/model.ts`:
 
-```js
-import express from 'express';
-
-const app = express();
-
-app.post('/tarefas', function (_req, res) {
-  // vamos fazer algo aqui que "cadastre" a tarefa
-  res.send({
-    id: 1
-  });
-});
-
-app.listen(8080);
-```
-
-Observe que no Express, assim como no módulo `http` do Node.js, a resposta é enviada através de uma chamada no objeto `res`. O motivo disso é simples quando se leva em conta a assincronia do JavaScript: se a mesma task que está em execução no Event Loop fosse obrigada a retornar a resposta para o cliente da requisição HTTP, não seria possível fazer absolutamente nada de útil com ela. Mesmo antes da introdução de armazenamento em banco de dados nós podemos simular isso criando um módulo que expõe o serviço de cadastro de tarefa. Crie um arquivo chamado `tarefas\model.js`:
-
-```js
+```ts
 import util from 'util';
 
 const pausar = util.promisify(setTimeout);
 
-export async function cadastrarTarefa (tarefa) {
-  await pausar(1000);
-  console.log('cadastrou', tarefa);
+export interface DadosTarefa {
+  descricao: string;
+}
+
+type IdTarefa = number;
+
+// não usado por enquanto
+type Tarefa = DadosTarefa & { id: IdTarefa };
+
+export async function cadastrarTarefa(dados: DadosTarefa): Promise<IdTarefa> {
+  await pausar(100);
+  console.log('cadastrou', dados);
   return 1;
 }
 ```
 
 Use o método agora no arquivo `app.js`:
 
-```js
-import express from 'express';
+```ts
+import { cadastrarTarefa, DadosTarefa } from './tarefas/model';
 
-import { cadastrarTarefa } from './tarefas/model.js';
-
-const app = express();
-app.use(express.json()); // isso é necessário para que o corpo seja processado
-
-app.post('/tarefas', function (req, res, next) {
-  const tarefa = req.body;
-  cadastrarTarefa(tarefa)
-    .then(id => res.send({ id }))
-    .catch(next); // esse catch é *essencial*
+app.post('/tarefas', async (req, resp) => {
+  const dados = req.body as DadosTarefa;
+  const id = await cadastrarTarefa(dados);
+  resp.status(201);
+  return { id };
 });
-
-app.listen(8080);
 ```
 
-Analisando o código é possível identificar algumas novidades:
-
-- `app.use()`? `express.json()`? `next`? Todas essas coisas são relacionadas com um poderoso conceito do Express chamado `middlewares`. Em outros frameworks eles também são chamados de filtros, *pipes* etc.
-
-- Por que o `catch` é essencial? Remova essa chamada e cause um erro forçado dentro do método `cadastrarTarefa`:
+O que acontece se o método `cadastrarTarefa` disparar um erro?
 
 ```js
 export async function cadastrarTarefa (tarefa) {
@@ -173,20 +154,9 @@ export async function cadastrarTarefa (tarefa) {
 }
 ```
 
-```js
-app.post('/tarefas', function (req, res, next) {
-  const tarefa = req.body;
-  cadastrarTarefa(tarefa)
-    .then(id => res.send({ id }));
-    //.catch(next); // esse catch é *essencial*
-});
-```
-
-Isso mesmo, isso que você viu é seu servidor saindo do ar por conta de uma indisponibilidade qualquer. OU talvez o que você viu é uma falha silenciosa e memória consumida eternamente (além de um cliente que nunca recebe uma resposta), depende apenas da versão do Node (16 ou 14, respectivamente). Independente do caso, não tratar erros é uma péssima ideia. Por enquanto ficaremos com o `catch` mas desenvolveremos uma solução mais robusta e genérica em breve.
-
 Antes de passar para um exercício, armazene as tarefas recebidas em um array. Note que neste momento não estamos validando nada na entrada, faremos isso mais a frente.
 
-```js
+```ts
 import util from 'util';
 
 const pausar = util.promisify(setTimeout);
@@ -206,7 +176,7 @@ export async function cadastrarTarefa (tarefa) {
 }
 ```
 
-Proposta de exercício: desenvolva um endpoint que responda a chamadas ao método GET no caminho /tarefas, e retorne a lista de tarefas cadastradas. Bônus: processe um parâmetro de query string `termo` e use-o para filtrar tarefas que contenham o termo na sua descrição (em qualquer parte).
+[Exercício 01_get_tarefas](exercicios/01_get_tarefas/README.md)
 
 ## Aspectos recorrentes no desenvolvimento backend
 

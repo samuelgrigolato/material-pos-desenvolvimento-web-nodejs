@@ -1,18 +1,20 @@
 import fastify from 'fastify';
 
-import { cadastrarTarefa, DadosTarefa } from './tarefas/model';
+import { cadastrarTarefa, consultarTarefas, DadosTarefa } from './tarefas/model';
 
 const app = fastify({ logger: true });
-
-app.get('/hello', async (_req, _resp) => {
-  return { hello: 'world' };
-});
 
 app.post('/tarefas', async (req, resp) => {
   const dados = req.body as DadosTarefa;
   const id = await cadastrarTarefa(dados);
   resp.status(201);
   return { id };
+});
+
+app.get('/tarefas', async (req, resp) => {
+  const { termo } = req.query as { termo?: string };
+  const tarefas = await consultarTarefas(termo);
+  return tarefas;
 });
 
 async function main() {
