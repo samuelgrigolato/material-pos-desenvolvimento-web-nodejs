@@ -542,10 +542,11 @@ Agora é um bom momento para começar a usar uma ferramenta como Insomnia ou Pos
 
 ## Melhorando a apresentação de erros 404, 422, 401 e 403
 
-Parando para analisar os endpoints que construímos até o momento é possível observar um problema: qualquer tipo de erro é reportado com o status code 500, o que é bem ruim do ponto de vista do consumidor da nossa API. O ideal seria começarmos a utilizar os status codes que previmos no início:
+Parando para analisar os endpoints que construímos até o momento é possível observar um problema: alguns tipos de erro são reportados de maneira inadequada para o consumidor da API. O ideal seria usar os seguintes status code:
 
-- 404 para rotas inválidas (caminho e método);
-- 400 para dados de entrada em formato inválido;
+- 404 para rotas inválidas (caminho e método): isso já acontece, mas vamos customizar a resposta padrão do Fastify;
+- 400 para dados de entrada em formato inválido: mais a frente veremos como o Fastify permite a definição de esquemas json para melhorar a validação dos dados de entrada;
+- 415 para dados de entrada em formato não suportado (ex multipart ou texto plano);
 - 422 para dados de entrada em formato válido mas conteúdo incorreto (ex: credenciais inválidas no POST de login);
 - 401 caso um endpoint necessite de um usuário logado mas não tenha recebido um;
 - 403 caso um endpoint tenha sido chamado para retornar ou manipular dados que o usuário não tem acesso.
@@ -554,157 +555,152 @@ Vamos resolver cada caso separadamente:
 
 ### 404 (rotas inválidas)
 
-Este é provavelmente o mais simples, basta adicionar um middleware no final de tudo (mas antes do middleware de tratamento de erro) que customiza o retorno 404:
+Este é provavelmente o mais simples, pois só queremos customizar o tratamento padrão do Fastify:
 
-```js
-app.use((_req, res) => {
-  res.status(404).send({
-    razao: 'Rota não existe.'
-  });
+```ts
+app.setNotFoundHandler((req, resp) => {
+  resp.status(404).send({ erro: 'Rota não encontrada' });
 });
 ```
 
 ### 400 (formato inválido)
 
-Para resolver este faremos em duas partes. A primeira é tratar erros de sintaxe JSON. O middleware `json` já dispara erro nesse caso, e esse erro possui um atributo `statusCode` que passaremos a usar no nosso middleware de tratamento de erro:
+O Fastify já está tratando boa parte dos problemas aqui:
 
-```js
-app.use((err, _req, res, _next) => {
-  const razao = err.message || err;
-  res.status(err.statusCode || 500).send({ razao });
-});
-```
+- Ele já rejeita requisições multipart (retornando 415);
+- Ele retorna 400 se o content-type for JSON mas não for possível converter o payload.
 
-A outra parte é falhar sempre que o corpo vier com um mime type diferente de JSON. Para isso basta adicionar um outro middleware:
+Um problema acontece se o content-type for `text/plain`, no entanto. Tudo fica undefined no handler. Por padrão o Fastify instala duas instâncias de [ContentTypeParser](https://fastify.dev/docs/latest/Reference/ContentTypeParser/), uma para o content-type `application/json` e outra para `text/plain`. É possível desligar o parser de text/plain assim:
 
-```js
-app.use((req, _res, next) => {
-  const contentType = req.headers['content-type'];
-  if (contentType !== undefined && !contentType.startsWith('application/json')) {
-    next({
-      statusCode: 400,
-      message: 'Corpo da requisição deve ser application/json'
-    });
-  } else {
-    next();
-  }
-});
+```ts
+app.removeContentTypeParser('text/plain');
 ```
 
 ### 422 (dados em formato válido mas conteúdo incorreto), 401 (autenticação necessária) e 403 (autenticação inválida ou acesso negado a um recurso específico)
 
-Agora que nosso middleware de tratamento de erros suporta o atributo statusCode, podemos definir tipos de erro específicos para esses casos. Crie um arquivo `erros.js`:
+Para o tratamento desses três tipos de erro utilizaremos a API `setErrorHandler` do Fastify. Ela permite que a gente defina uma rotina global que constrói a resposta da requisição baseado no erro que foi lançado pelo handler/hook. Veja:
+
+```ts
+app.setErrorHandler((err, req, resp) => {
+  resp.send(err); // isso delega o tratamento de erro para o handler padrão do Fastify
+});
+```
+
+Essa funcionalidade nos permite definir uma coleção de exceções que, ao serem disparadas dos handlers, vão cair nesse handler de erro. Crie um arquivo `shared/erros.ts`:
 
 ```js
-export class DadosOuEstadoInvalido extends Error {
-  constructor (codigo, descricao, extra) {
-    super(descricao);
-    this.codigo = codigo;
-    this.statusCode = 422;
+
+export abstract class ErroNoProcessamento extends Error {
+  readonly statusCode: number;
+
+  constructor (message: string, statusCode: number) {
+    super(message);
+    this.statusCode = statusCode;
+  }
+
+  toJSON (): Record<string, any> {
+    return {
+      mensagem: this.message
+    };
+  }
+}
+
+export class DadosOuEstadoInvalido extends ErroNoProcessamento {
+  readonly extra: any;
+
+  constructor (descricao: string, extra: any) {
+    super(descricao, 422);
     this.extra = extra;
   }
-}
 
-export class UsuarioNaoAutenticado extends Error {
-  constructor () {
-    super('Um usuário é necessário para efetuar esta chamada.');
-    this.statusCode = 401;
+  toJSON () {
+    return {
+      ...super.toJSON(),
+      extra: this.extra
+    };
   }
 }
 
-export class AutenticacaoInvalida extends Error {
+export class UsuarioNaoAutenticado extends ErroNoProcessamento {
   constructor () {
-    super('Autenticação inválida.');
-    this.statusCode = 403;
+    super('Usuário não autenticado.', 401);
   }
 }
 
-export class AcessoNegado extends Error {
+export class AutenticacaoInvalida extends ErroNoProcessamento {
   constructor () {
-    super('Acesso ao recurso solicitado foi negado.');
-    this.statusCode = 403;
+    super('Token inválido.', 401);
+  }
+}
+
+export class AcessoNegado extends ErroNoProcessamento {
+  constructor () {
+    super('Acesso ao recurso solicitado foi negado.', 403);
   }
 }
 ```
 
-Use estes erros no arquivo `tarefas\model.js`:
+Adicione agora suporte para este tipo de erro no handler de erros:
 
-```js
-import util from 'util';
+```ts
+import { ErroNoProcessamento } from './shared/erros';
+...
+app.setErrorHandler((err, req, resp) => {
+  if (err instanceof ErroNoProcessamento) {
+    resp.status(err.statusCode).send(err.toJSON());
+  } else {
+    resp.send(err); // isso delega o tratamento de erro para o handler padrão do Fastify
+  }
+});
+```
 
-import { UsuarioNaoAutenticado } from '../erros.js';
+Use por fim estes erros no arquivo `tarefas\model.ts`:
 
-// ...
+```ts
+import { UsuarioNaoAutenticado } from '../shared/erros';
 
-export async function cadastrarTarefa (tarefa, loginDoUsuario) {
-  if (loginDoUsuario === undefined) {
+...
+
+export async function cadastrarTarefa(usuario: Usuario | null, dados: DadosTarefa): Promise<IdTarefa> {
+  if (usuario === null) {
     throw new UsuarioNaoAutenticado();
   }
-  await pausar(25);
-  sequencial++;
 
-// ...
+...
 
-export async function consultarTarefas (termo, loginDoUsuario) {
-  if (loginDoUsuario === undefined) {
+export async function consultarTarefas(usuario: Usuario | null, termo?: string): Promise<Tarefa[]> {
+  if (usuario === null) {
     throw new UsuarioNaoAutenticado();
   }
-  await pausar(25);
 ```
 
 E também no `usuarios\model.js`:
 
 ```js
-import { v4 as uuidv4 } from 'uuid';
-import util from 'util';
+import { AutenticacaoInvalida, DadosOuEstadoInvalido } from '../shared/erros';
 
-import { AutenticacaoInvalida, DadosOuEstadoInvalido } from '../erros.js';
+...
 
-// ...
-
-export async function autenticar (login, senha) {
+export async function autenticar (login: Login, senha: Senha): Promise<IdAutenticacao> {
   await pausar(25);
-  const usuario = usuarios[login];
+  const usuario = usuarios.find(usuario => usuario.login === login);
   if (usuario === undefined || usuario.senha !== senha) {
-    throw new DadosOuEstadoInvalido('CredenciaisInvalidas', 'Credenciais inválidas.');
+    throw new DadosOuEstadoInvalido('Login ou senha inválidos', {
+      codigo: 'CREDENCIAIS_INVALIDAS'
+    });
   }
-  const autenticacao = uuidv4();
 
-// ...
+...
 
-export async function recuperarLoginDoUsuarioAutenticado (autenticacao) {
+export async function recuperarUsuarioAutenticado (token: IdAutenticacao): Promise<Usuario> {
   await pausar(25);
-  const login = autenticacoes[autenticacao];
-  if (login === undefined) {
+  const usuario = autenticacoes[token];
+  if (usuario === undefined) {
     throw new AutenticacaoInvalida();
   }
-  return login;
-}
-
-// ...
 ```
 
-Adapte o handler de erro de modo a dar suporte para a classe `DadosOuEstadoInvalido`:
-
-```js
-app.use((err, _req, res, _next) => {
-  let resposta;
-  if (err.codigo) {
-    resposta = {
-      codigo: err.codigo,
-      descricao: err.message,
-      extra: err.extra
-    };
-  } else {
-    resposta = {
-      razao: err.message || err
-    };
-  }
-  res.status(err.statusCode || 500).send(resposta);
-});
-```
-
-Note que não trocamos o `new Error` do método `isAdmin` (esse método foi escrito durante a resolução de em um dos exercícios anteriores) pois neste caso realmente representaria um defeito e não uma falha de dados de entrada do usuário, então é correto que dispare uma resposta 500.
+[Exercício 03_detalhes_da_tarefa](exercicios/03_detalhes_da_tarefa/README.md)
 
 Proposta de exercício: implemente um endpoint para retornar detalhes de uma única tarefa, ele deve responder na rota GET /tarefas/:id. Faça com que este endpoint exija autenticação. Faça também com que ele dispare erro caso o usuário logado não seja dono da tarefa (mesmo que seja admin). Lembre-se: comece do model, depois desenvolva o endpoint.
 

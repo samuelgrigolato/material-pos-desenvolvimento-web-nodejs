@@ -1,6 +1,8 @@
 import { v4 as uuidv4 } from 'uuid';
 import util from 'util';
 
+import { AutenticacaoInvalida, DadosOuEstadoInvalido } from '../shared/erros';
+
 const pausar = util.promisify(setTimeout);
 
 type UUIDString = string;
@@ -33,7 +35,9 @@ export async function autenticar (login: Login, senha: Senha): Promise<IdAutenti
   await pausar(25);
   const usuario = usuarios.find(usuario => usuario.login === login);
   if (usuario === undefined || usuario.senha !== senha) {
-    throw new Error('Login ou senha inválidos');
+    throw new DadosOuEstadoInvalido('Login ou senha inválidos', {
+      codigo: 'CREDENCIAIS_INVALIDAS'
+    });
   }
   const id = gerarId();
   autenticacoes[id] = usuario;
@@ -44,7 +48,7 @@ export async function recuperarUsuarioAutenticado (token: IdAutenticacao): Promi
   await pausar(25);
   const usuario = autenticacoes[token];
   if (usuario === undefined) {
-    throw new Error('Token inválido');
+    throw new AutenticacaoInvalida();
   }
   return usuario;
 }
