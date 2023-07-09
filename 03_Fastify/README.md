@@ -538,7 +538,7 @@ app.get('/tarefas', async (req, resp) => {
 
 Agora é um bom momento para começar a usar uma ferramenta como Insomnia ou Postman para os testes.
 
-Proposta de exercício: adicionar um atributo boolean chamado `admin` nos usuários, e caso este atributo seja true permitir que este usuário veja as tarefas de todos os outros. Este é um tipo de autorização baseada em perfil, diferente e normalmente complementar à autorização baseada no dado que aplicamos anteriormente.
+[Exercício 02_admin](exercicios/02_admin/README.md)
 
 ## Melhorando a apresentação de erros 404, 422, 401 e 403
 
