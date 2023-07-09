@@ -38,7 +38,7 @@ $ npm install fastify
 Instale também o pacote de tipos TypeScript para código Node 18:
 
 ```sh
-$ npm install @types/node@18
+$ npm install --save-dev @types/node@18
 ```
 
 Veja o que mudou no `package.json` e também note que apareceu um arquivo gigante chamado `package-lock.json`. Ambos serão explicados posteriormente.
@@ -317,161 +317,226 @@ Como garantir que o usuário é quem diz ser? E, uma vez feito isso, como impedi
 
 - Autenticação stateless usando JWT: bem similar à autenticação stateful, mas o servidor devolve um token que carrega a informação do login do usuário, junto com uma assinatura que não pode ser forjada. Em futuras requisições, basta verificar essa assinatura para garantir que aquele token foi mesmo gerado em uma autenticação anterior.
 
-Para começar o desenvolvimento da versão stateless, instale o pacote `uuid` (usaremos ele para gerar o identificador das sessões):
+Para começar o desenvolvimento da versão stateless, faça uma cópia da solução do exercício [01_get_tarefas](exercicios/01_get_tarefas/README.md) e instale o pacote `uuid` (usaremos ele para gerar o identificador das sessões):
 
 ```sh
 $ npm i uuid
+$ npm i --save-dev @types/uuid
 ```
 
-Agora crie um diretório chamado `usuarios` e, dentro dele, um arquivo chamado `model.js` com o seguinte conteúdo:
+Agora crie um diretório chamado `usuarios` e, dentro dele, um arquivo chamado `model.ts` com o seguinte conteúdo:
 
-```js
+```ts
+type UUIDString = string;
+
+type IdAutenticacao = UUIDString;
+
+export async function autenticar (login: string, senha: string): Promise<IdAutenticacao> {
+  return '4a9b7d2a-f0e2-4b9b-8609-c6ec27791b06';
+}
+```
+
+Essa versão nos permite entender qual o contrato da função autenticar com os futuros módulos consumidores (exceto a parte de possíveis exceções). Vamos mudar um pouco para que a implementação fique mais completa:
+
+```ts
 import { v4 as uuidv4 } from 'uuid';
 import util from 'util';
 
 const pausar = util.promisify(setTimeout);
 
-const usuarios = {
-  pedro: {
-    nome: 'Pedro',
-    senha: '123456'
-  },
-  clara: {
-    nome: 'Clara',
-    senha: '234567'
-  }
+type UUIDString = string;
+type IdAutenticacao = UUIDString;
+type Login = string;
+type Senha = string;
+
+const usuarios: { [key: Login]: Senha } = {
+  'pedro': '123456',
+  'clara': '234567',
 };
 
-const autenticacoes = {};
+const autenticacoes: { [key: IdAutenticacao]: Login } = {};
 
-export async function autenticar (login, senha) {
+export async function autenticar (login: Login, senha: Senha): Promise<IdAutenticacao> {
   await pausar(25);
-  const usuario = usuarios[login];
-  if (usuario === undefined || usuario.senha !== senha) {
-    throw new Error('Credenciais inválidas.');
+  if (usuarios[login] !== senha) {
+    throw new Error('Login ou senha inválidos');
   }
-  const autenticacao = uuidv4();
-  autenticacoes[autenticacao] = login;
-  return autenticacao;
-};
+  const id = gerarId();
+  autenticacoes[id] = login;
+  return id;
+}
+
+function gerarId (): IdAutenticacao {
+  return uuidv4();
+}
 ```
 
-E adicione o seguinte endpoint no arquivo `app.js`:
+Adicione agora o seguinte endpoint no arquivo `app.js`:
 
-```js
-  res.send(tarefas);
-}));
+```ts
+import { autenticar } from './usuarios/model';
 
-app.post('/usuarios/login', asyncWrapper(async (req, res) => {
-  const { login, senha } = req.body; // lembre-se do middleware express.json
-  const autenticacao = await autenticar(login, senha);
-  res.send({ autenticacao });
-}));
+...
 
-app.use((err, _req, res, _next) => {
+app.post('/usuarios/login', async (req, resp) => {
+  const { login, senha } = req.body as { login: string, senha: string };
+  const id = await autenticar(login, senha);
+  return { token: id };
+});
 ```
 
-Isso cuida da geração do token, mas e o uso? A melhor maneira de implementar é através de um middleware que verifica se existe o header `Authorization` (péssimo nome, infelizmente, pois estamos falando de autenticação). Esse header tem várias opções de preenchimento, no nosso caso o que mais se aproxima é o formato `Bearer [TOKEN]`, ex: `Bearer 934e2282-077b-440a-9ecc-350d658d2cb5`. Antes de mais nada adicione uma função no arquivo `usuarios\model.js` que retorna o login do usuário dado um ID de autenticação:
+Teste com o seguinte comando HTTPie ou equivalente:
 
-```js
-export async function recuperarLoginDoUsuarioAutenticado (autenticacao) {
+```
+$ http -v post http://localhost:3000/usuarios/login login=inexistente senha=errada
+```
+
+Note como o erro retornado é um erro 500 (neste caso o ideal seria um erro 400).
+
+Teste agora com dados válidos:
+
+```
+$ http -v post http://localhost:3000/usuarios/login login=clara senha=234567
+```
+
+Isso cuida da geração do token, mas e o uso? A melhor maneira de implementar é através de um hook que verifica se existe o header `Authorization` (péssimo nome, infelizmente, pois estamos falando de autenticação). Esse header tem várias opções de preenchimento, no nosso caso o que mais se aproxima é o formato `Bearer [TOKEN]`, ex: `Bearer 934e2282-077b-440a-9ecc-350d658d2cb5`. Antes de mais nada adicione uma função no arquivo `usuarios\model.js` que retorna o login do usuário dado um ID de autenticação:
+
+```ts
+export async function recuperarLoginDoUsuarioAutenticado (token: IdAutenticacao): Promise<Login> {
   await pausar(25);
-  const login = autenticacoes[autenticacao];
+  const login = autenticacoes[token];
   if (login === undefined) {
-    throw new Error('Autenticação inválida.');
+    throw new Error('Token inválido');
   }
   return login;
 }
 ```
 
-E agora o middleware que faz a verificação e, caso haja o header, incrementa o objeto da requisição com os dados do usuário:
+E agora o hook que faz a verificação e, caso haja o header, incrementa o objeto da requisição com os dados do usuário:
 
-```js
-app.use(asyncWrapper(async (req, _res, next) => {
-  const authorization = req.headers['authorization'];
-  const match = /^Bearer (.*)$/.exec(authorization);
-  if (match) {
-    const autenticacao = match[1];
-    const loginDoUsuario = await recuperarLoginDoUsuarioAutenticado(autenticacao);
-    req.loginDoUsuario = loginDoUsuario;
+```ts
+app.addHook('preHandler', async (req, resp) => {
+  const { authorization } = req.headers as { authorization?: string };
+  if (authorization !== undefined) {
+    const token = authorization.replace('Bearer ', '');
+    const login = await recuperarLoginDoUsuarioAutenticado(token);
+    req.loginDoUsuario = login;
   }
-  next();
-}));
+  // não queremos disparar um erro se o usuário não estiver autenticado neste ponto,
+  // pois algumas rotas podem ser públicas
+});
 ```
 
-Neste ponto temos tudo o que precisamos para implementar a *autorização*. Comece mudando o arquivo `tarefas/model.js` para que ele ofereça suporte para o conceito de usuário logado:
+Repare que a linha `req.loginDoUsuario = login` está apresentando um erro de compilação TypeScript. Isso faz sentido, afinal o tipo `FastifyRequest` não sabe o que é um usuário. São necessárias duas etapas para resolver este problema:
 
-```js
+1. Chamar a função `decorateRequest`, na instância do Fastify, para dizer ao framework que requests podem possuir um valor neste atributo. Isso é necessário por conta de otimizações internas do framework:
+
+```ts
+app.decorateRequest('loginDoUsuario', null);
+```
+
+2. Augmentar a declaração do tipo `FastifyRequest` com a propriedade `usuario`. Aqui veremos a utilização de declarações pela primeira vez, uma forma de fazer a ponte entre código JavaScript e TypeScript. Sempre que você instala um pacote com o nome `@types/abc` se trata de um pacote com esses arquivos de declaração e nada mais. Comece com a augmentação no próprio arquivo `app.ts`:
+
+```ts
+declare module 'fastify' {
+  interface FastifyRequest {
+    loginDoUsuario: Login | null;
+  }
+}
+```
+
+Por mais que essa solução já é suficiente, a boa prática é agrupar todas essas definições na pasta `@types` do projeto. Crie um arquivo `@types/fastify/index.d.ts` e mova o código para dentro deste arquivo:
+
+```ts
+import fastify from 'fastify'; // essa linha é muito importante! caso contrário ocorre uma substituição/shadowing do módulo fastify
+import { Login } from 'usuarios/model';
+
+declare module 'fastify' {
+  interface FastifyRequest {
+    loginDoUsuario: Login | null;
+  }
+}
+```
+
+Repare que essa definição é global, e você pode ter múltiplas instâncias do fastify (incluindo especificidades de cada contexto de plugin) em uma mesma base de código. Infelizmente [não há incentivo suficiente para isso ser resolvido](https://github.com/fastify/fastify/issues/2110).
+
+Neste ponto temos tudo o que precisamos para implementar a *autorização*. Comece mudando o arquivo `tarefas/model.ts` para que ele ofereça suporte para o conceito de usuário logado:
+
+```ts
 import util from 'util';
+
+import { Login } from '../usuarios/model';
 
 const pausar = util.promisify(setTimeout);
 
-let sequencial = 3;
-const tarefas = [
-  {
-    id: 1,
-    loginDoUsuario: 'pedro',
-    descricao: 'Comprar leite'
-  },
-  {
-    id: 2,
-    loginDoUsuario: 'pedro',
-    descricao: 'Trocar lâmpada'
-  },
-  {
-    id: 3,
-    loginDoUsuario: 'clara',
-    descricao: 'Instalar torneira'
-  }
-];
-
-export async function cadastrarTarefa (tarefa, loginDoUsuario) {
-  if (loginDoUsuario === undefined) {
-    throw new Error('Um usuário é necessário para cadastrar uma tarefa.');
-  }
-  await pausar(25);
-  sequencial++;
-  tarefas.push({
-    id: sequencial,
-    loginDoUsuario,
-    ...tarefa
-  });
-  return sequencial;
+export interface DadosTarefa {
+  descricao: string;
 }
 
-export async function consultarTarefas (termo, loginDoUsuario) {
-  if (loginDoUsuario === undefined) {
-    throw new UsuarioNaoAutenticado();
+type IdTarefa = number;
+
+type Tarefa =
+  DadosTarefa
+  & {
+    id: IdTarefa,
+    loginDoUsuario: Login,
+  };
+
+let sequencial: number = 0;
+const tarefas: Tarefa[] = [];
+
+export async function cadastrarTarefa(loginDoUsuario: Login | null, dados: DadosTarefa): Promise<IdTarefa> {
+  if (loginDoUsuario === null) {
+    throw new Error('Usuário não autenticado');
   }
-  await pausar(25);
-  const usuarioIsAdmin = await isAdmin(loginDoUsuario);
-  let tarefasDisponiveis = usuarioIsAdmin ? tarefas : tarefas.filter(x => x['loginDoUsuario'] === loginDoUsuario);
-  if (termo !== undefined && termo !== '') {
-    tarefasDisponiveis = tarefasDisponiveis
-      .filter(x => x["descricao"].toLowerCase().indexOf(termo.toLowerCase()) >= 0);
+  await pausar(100);
+  sequencial++;
+  const idTarefa = sequencial;
+  const tarefa = {
+    ...dados,
+    id: idTarefa,
+    loginDoUsuario,
+  };
+  tarefas.push(tarefa);
+  console.log('cadastrou', tarefa);
+  return idTarefa;
+}
+
+export async function consultarTarefas(loginDoUsuario: Login | null, termo?: string): Promise<Tarefa[]> {
+  if (loginDoUsuario === null) {
+    throw new Error('Usuário não autenticado');
   }
-  return tarefasDisponiveis.map(x => ({
-    id: x.id,
-    descricao: x.descricao
-  }));
+  await pausar(100);
+  return tarefas
+    .filter(x => x.loginDoUsuario === loginDoUsuario) // essa aqui é a linha que aplica autorização!
+    .filter(x => !termo || x.descricao.includes(termo));
 }
 ```
 
-E adapte agora no arquivo `app.js`:
+Note que é necessário exportar o tipo `Login` no arquivo `usuarios/model.ts` para que o import funcione:
+
+```ts
+export type Login = string;
+```
+
+E adapte agora no arquivo `app.ts`:
 
 ```js
-app.post('/tarefas', asyncWrapper(async (req, res) => {
-  const tarefa = req.body;
-  const id = await cadastrarTarefa(tarefa, req.loginDoUsuario);
-  res.send({ id });
-}));
+app.post('/tarefas', async (req, resp) => {
+  const dados = req.body as DadosTarefa;
+  const id = await cadastrarTarefa(req.loginDoUsuario, dados);
+  resp.status(201);
+  return { id };
+});
 
-app.get('/tarefas', asyncWrapper(async (req, res) => {
-  const termo = req.query.termo;
-  const tarefas = await consultarTarefas(termo, req.loginDoUsuario);
-  res.send(tarefas);
-}));
+app.get('/tarefas', async (req, resp) => {
+  const { termo } = req.query as { termo?: string };
+  const tarefas = await consultarTarefas(req.loginDoUsuario, termo);
+  return tarefas;
+});
 ```
+
+Agora é um bom momento para começar a usar uma ferramenta como Insomnia ou Postman para os testes.
 
 Proposta de exercício: adicionar um atributo boolean chamado `admin` nos usuários, e caso este atributo seja true permitir que este usuário veja as tarefas de todos os outros. Este é um tipo de autorização baseada em perfil, diferente e normalmente complementar à autorização baseada no dado que aplicamos anteriormente.
 
@@ -676,7 +741,9 @@ app.get('/usuarios/logado', asyncWrapper(async (req, res) => {
 
 Proposta de exercício: implemente um endpoint que permita que o usuário logado altere seu nome. Ele deve responder na rota PUT /usuarios/logado/nome. Aceite um objeto JSON no formato `{ "nome": "Novo nome" }` ao invés de uma string (é boa prática sempre receber um objeto ou array no nível raiz de um endpoint, assim ele permanece extensível).
 
-## Express Routers
+## Modularizando o backend usando plugins
+
+Nota para migração Fastify: a ideia aqui é apresentar o esquema de plugins com prefixo funcionamento da mesma forma que os Express Routers.
 
 Dê uma olhada no arquivo `app.js`. Repare que ele está crescendo a cada endpoint novo que adicionamos, o que claramente não vai ficar legal para projetos com dezenas ou centenas de endpoints. Qual seria então a melhor maneira de começar a controlar esse aumento de complexidade? A resposta do Express é o conceito de `routers`. Um router pode ser compreendido como uma mini aplicação Express (igualzinha à instância `app`), capaz de ser embutida em outros routers ou aplicações, opcionalmente vinculado a um subcaminho. Vamos aplicar o conceito de routers na nossa API de tarefas, primeiro extraindo um router para o caminho `/usuarios`. Comece criando o arquivo `usuarios/router.js`:
 
@@ -1268,42 +1335,6 @@ export default router;
 ```
 
 Proposta de exercício: aplique o middleware `schemaValidator` no roteador de tarefas.
-
-## Express Generator
-
-Existe uma ferramenta de geração de código disponível para usuários de Express, chamada Express Generator. Para utilizá-la, primeiro instale-a usando `npm`:
-
-```
-npm install -g express-generator
-```
-
-Agora, em um diretório, execute o seguinte comando para criar a estrutura básica de um projeto (será criado um diretório com o nome `02_generator`):
-
-```
-express 02_generator
-```
-
-Entre no diretório do projeto e instale as dependências:
-
-```
-npm install
-```
-
-E execute-o com o comando `npm start`. Você pode acessar a aplicação no navegador, no endereço `http://localhost:3000`.
-
-Algumas observações:
-
-* Para uma API HTTP, você provavelmente não vai usar a parte de `views`. É possível gerar um projeto sem essa parte, com o comando `express --no-view`.
-
-* Repare que o diretório `public` é servido como um diretório de arquivos estáticos, isso resolve mais um dos pontos propostos no início deste tópico. A "mágica" ocorre no arquivo `app.js`, na linha que instala o *middleware* `express.static` na aplicação. Mais detalhes sobre middlewares serão fornecidos mais abaixo.
-
-* É possível observar aqui que o Express estimula a modularização dos endpoints em `Routers`. Uma boa analogia é considerar cada `Router` como uma mini aplicação express, *embutida* na aplicação raíz.
-
-A decisão entre usar o Express Generator ou não cabe a cada equipe, mas normalmente o ideal é começar do zero, adicionando apenas aquilo que o projeto de fato necessita. O valor desse tipo de ferramenta está na fase de aprendizado, para aqueles que querem ter algo funcionando para então ter uma ideia daquilo que é considerado boa prática.
-
-Proposta de exercício (não relacionado em nada com o Express Generator): desenvolva um endpoint que responde na rota GET /tarefas/abertas/quantidade, retornando a resposta no seguinte formato: 999. Essa quantidade é a quantidade de tarefas ainda não concluídas. Note que ainda não estamos oferecendo a possibilidade de concluir uma tarefa, então basta retornar a quantidade de tarefas que o usuário logado possui.
-
-Dica: use o método `res.json(any)` ao invés de `res.send(number)`, pois o Express vai entender que está tentando mudar o status code. Uma prática melhor seria sempre responder um objeto, por exemplo `{ "quantidade": 999 }`, isso garante que o endpoint permaneça sempre extensível.
 
 ## Concluindo e reabrindo tarefas
 
