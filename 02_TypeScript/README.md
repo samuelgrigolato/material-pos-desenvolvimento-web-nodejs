@@ -1,6 +1,6 @@
 # TypeScript
 
-A linguagem [TypeScript](https://www.typescriptlang.org/) é um superconjunto da linguagem JavaScript, adicionando características de linguagens fortemente tipadas.
+A linguagem [TypeScript](https://www.typescriptlang.org/) é um superconjunto da linguagem JavaScript, adicionando características de linguagens estaticamente tipadas.
 
 A intenção do TypeScript não é substituir o ecossistema JavaScript, mas sim reutilizá-lo. Código TS é compilado para JS e este sim é executável pelo Node ou pelo navegador.
 
@@ -69,7 +69,136 @@ propriedade.ts:5:18 - error TS2339: Property 'location' does not exist on type '
 
 Repare que ao chamar o compilador, o arquivo `js` está sendo substituído por uma versão ligeiramente diferente. Isso é o resultado da compilação: lembre-se que o TypeScript não possui (até o momento) um motor de execução próprio, então o processo é compilar para JavaScript e executar o JavaScript normalmente.
 
-## Tipos
+## Por que se preocupar com tipos?
+
+Antes de continuarmos com os exemplos, vale refletir sobre os benefícios que estamos esperando com a preocupação com tipos.
+
+O primeiro passo é definir mais formalmente o que é um sistema de tipos: é um mecanismo usado nas linguagens de programação para verificar se os tipos de valores com os quais as operações e funções estão sendo usadas são apropriados. É uma parte do processo de compilação ou interpretação que verifica a corretude do programa no nível dos tipos.
+
+Mas o que significa isso? Quando estamos programando, estamos lidando com símbolos (variáveis, parâmetros, funções, classes, módulos). Cada símbolo possui um *tipo*, seja ele algo definido *estaticamente* (ou seja, presente no código fonte), seja definido dinâmicamente (ou seja, só se sabe em tempo de execução).
+
+Veja esse exemplo de tipagem estática em Haskell:
+
+```hs
+dobrar x = x * 2
+
+duplicar x = x ++ x
+
+main = do
+    let msg = "Hello World"
+    let duplicada = duplicar msg
+    let res = dobrar 5
+    let concatenada = duplicada ++ " " ++ show res
+    putStrLn concatenada
+```
+
+Note que a ausência da escrita explícita dos tipos não torna Haskell uma linguagem dinamicamente tipada. O compilador sabe (infere) tudo sobre o tipo de cada símbolo nesse código! Veja agora um exemplo similar, em java:
+
+```java
+class Main {
+  public static void main(String[] args) {
+    String msg = "Hello World!";
+    int res = dobrar(5);
+    String duplicada = duplicar(msg);
+    System.out.println(duplicada + " " + res);
+  }
+
+  private static int dobrar(int x) {
+    return x * 2;
+  }
+
+  private static String duplicar(String a) {
+    return a + a;
+  }
+}
+```
+
+Mesmo sendo mais verboso que o exemplo em Haskell, a consequência é a mesma: o compilador sabe, em tempo de compilação, o tipo exato de cada símbolo deste código!
+
+Compare agora com esse código Python:
+
+```python
+import random
+
+
+def gerar():
+  if random.randint(0, 10) > 5:
+    return 1
+  else:
+    return "Oi"
+
+
+x = gerar()
+print(x.upper()) # pyright: ignore
+```
+
+Repare que o problema com a chamada `upper` no que potencialmente é um número inteiro ocorre apenas *em execução*. Isso torna Python dinamicamente tipado, assim como JavaScript.
+
+Agora sabemos diferenciar bem um código estaticamente de um código dinamicamente tipado. Mas e a diferença entre tipagem forte e fraca? Essa classificação se refere à existência ou não de coersão implícita de tipos no compilador. Veja este exemplo com JavaScript (uma linguagem considerada fracamente tipada):
+
+```js
+const a = [];
+const b = 5;
+let res;
+res = a + b;
+console.log(typeof res, res);
+res = a - b;
+console.log(typeof res, res);
+```
+
+A mesma coisa em Python seria rejeitada (e isso faz a linguagem ser considerada fortemente tipada):
+
+```py
+a = []
+b = 5
+res = a + b # pyright: ignore
+print(type(res))
+print(res)
+res = a - b # pyright: ignore
+print(type(res))
+print(res)
+```
+
+Mas e se eu forçar a barra? Veja essa lista customizada em Python:
+
+```py
+class ListaCustomizada(list):
+    def __add__(self, outro):
+        if (isinstance(outro, list)):
+            return ListaCustomizada(super().__add__(outro))
+        else:
+            res = self.copy()
+            res.append(outro)
+            return ListaCustomizada(res)
+
+    def __sub__(self, outro):
+        res = self.copy()
+        res.remove(outro)
+        return ListaCustomizada(res)
+
+a = ListaCustomizada()
+b = 5
+res = a + b # pyright: ignore
+print(type(res))
+print(res)
+res = res - b # pyright: ignore
+print(type(res))
+print(res)
+```
+
+Aqui fica mais complicado, pois a linguagem em si não deixou de ser fortemente tipada (você teve que ser explícito), mas você definitivamente herdou os problemas da tipagem fraca ao desenvolver essa classe e deixá-la disponível para os utilizadores!
+
+Voltando para o TypeScript, podemos dizer que o objetivo é introduzir *tipagem estática* no desenvolvimento JavaScript, melhorando o ferramental e descoberta de erros em tempo de compilação, sem interferir na questão do JavaScript ser *fracamente tipado*. Outros benefícios da linguagem:
+
+- Ferramentas de suporte: a tipagem estática permite um suporte melhor para refatoração e outros recursos nas IDEs.
+
+- Recursos avançados: TypeScript inclui alguns recursos que não estão disponíveis no JavaScript ou que ainda não são amplamente suportados, como decoradores e enums.
+
+- Melhor documentação: a tipagem estática serve como uma forma de documentação do que uma função ou componente espera como entrada e saída.
+
+- Recursos ESNext: TypeScript suporta recursos ECMAScript mais novos, mesmo em navegadores mais antigos, uma vez que o compilador TypeScript pode compilar esses recursos para uma versão mais antiga do JavaScript (babel sem babel).
+
+## Tipos no TypeScript
 
 A partir de agora o código será sempre escrito em TypeScript, portanto lembre-se de compilá-lo com `tsc` antes de testá-lo no Node.js ou no navegador.
 
@@ -295,7 +424,7 @@ interface CaixaDeSelecao<T> {
 }
 ```
 
-Generics também podem ser utilizado em funções:
+Generics também podem ser utilizados em funções:
 
 ```ts
 
