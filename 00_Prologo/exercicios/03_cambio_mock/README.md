@@ -1,4 +1,4 @@
-# Proposta der exercício: Câmbio mock
+# Proposta de exercício: Câmbio mock
 
 Implemente um endpoint que faça o mesmo papel do endpoint do exercício anterior. Use dados fictícios e um conjunto pequeno de moedas.
 
