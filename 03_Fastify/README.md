@@ -773,58 +773,52 @@ app.put('/usuarios/autenticado/nome', async (req, resp) => {
 
 ## Modularizando o backend usando plugins
 
-Nota para migração Fastify: a ideia aqui é apresentar o esquema de plugins com prefixo funcionamento da mesma forma que os Express Routers.
+Dê uma olhada no arquivo `app.ts`. Repare que ele está crescendo a cada endpoint novo que adicionamos, o que claramente não vai ficar legal para projetos com dezenas ou centenas de endpoints. Qual seria então a melhor maneira de começar a controlar esse aumento de complexidade? A resposta do Fastify é mais uma vez o uso de `plugins`. Um plugin também pode ser compreendido como uma mini aplicação Fastify (igualzinha à instância `app`), capaz de ser embutida em outras aplicações, opcionalmente vinculado a um subcaminho. Vamos aplicar este conceito na nossa API de tarefas, primeiro extraindo um plugin para o caminho `/usuarios`. Comece criando o arquivo `usuarios/router.js`:
 
-Dê uma olhada no arquivo `app.js`. Repare que ele está crescendo a cada endpoint novo que adicionamos, o que claramente não vai ficar legal para projetos com dezenas ou centenas de endpoints. Qual seria então a melhor maneira de começar a controlar esse aumento de complexidade? A resposta do Express é o conceito de `routers`. Um router pode ser compreendido como uma mini aplicação Express (igualzinha à instância `app`), capaz de ser embutida em outros routers ou aplicações, opcionalmente vinculado a um subcaminho. Vamos aplicar o conceito de routers na nossa API de tarefas, primeiro extraindo um router para o caminho `/usuarios`. Comece criando o arquivo `usuarios/router.js`:
+```ts
+import { FastifyInstance } from 'fastify';
 
-```js
-import express from 'express';
+import { autenticar, alterarNome } from './model';
 
-import asyncWrapper from '../async-wrapper.js';
-import { alterarNomeDoUsuario, autenticar, recuperarDadosDoUsuario } from './model.js';
+export default async (app: FastifyInstance) => {
 
-const router = express.Router();
+  app.post('/login', async (req, resp) => {
+    const { login, senha } = req.body as { login: string, senha: string };
+    const id = await autenticar(login, senha);
+    return { token: id };
+  });
 
-router.post('/login', asyncWrapper(async (req, res) => {
-  const { login, senha } = req.body; // lembre-se do middleware express.json
-  const autenticacao = await autenticar(login, senha);
-  res.send({ autenticacao });
-}));
+  app.get('/autenticado', async (req, resp) => {
+    return {
+      usuario: {
+        nome: req.usuario.nome,
+        login: req.usuario.login,
+        admin: req.usuario.admin,
+      }
+    }; // por que não retornamos o objeto req.usuario diretamente?
+  });
 
-router.get('/logado', asyncWrapper(async (req, res) => {
-  const usuario = await recuperarDadosDoUsuario(req.loginDoUsuario);
-  res.send(usuario);
-}));
+  app.put('/autenticado/nome', async (req, resp) => {
+    const { nome } = req.body as { nome: string };
+    await alterarNome(req.usuario, nome);
+    resp.status(204);
+  });
 
-router.put('/logado/nome', asyncWrapper(async (req, res) => {
-  await alterarNomeDoUsuario(req.body.nome, req.loginDoUsuario);
-  res.sendStatus(204);
-}));
-
-export default router;
+};
 ```
 
-E adaptando o `app.js` para usar esse roteador:
+E adaptando o `app.ts` para usar esse roteador:
 
-```js
-// ...
+```ts
+import { recuperarUsuarioAutenticado } from './usuarios/model';
+import usuariosRouter from './usuarios/router';
 
-import usuariosRouter from './usuarios/router.js';
+...
 
-// ...
-
-  res.send(tarefa);
-}));
-
-app.use('/usuarios', usuariosRouter);
-
-app.use((_req, res) => {
-  res.status(404).send({
-
-// ...
+app.register(usuariosRouter, { prefix: '/usuarios' });
 ```
 
-Proposta de exercício: repita o processo para os endpoints que tratam tarefas. Comece criando o arquivo `tarefas/router.js`, depois adapte o `app.js`.
+[Exercício 04_router_tarefas](exercicios/04_router_tarefas/README.md)
 
 ## Node Package Manager
 
