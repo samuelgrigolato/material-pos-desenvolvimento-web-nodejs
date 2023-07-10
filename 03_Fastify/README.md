@@ -704,36 +704,72 @@ export async function recuperarUsuarioAutenticado (token: IdAutenticacao): Promi
 
 ## Expondo dados do usuário logado e permitindo alterar o nome
 
-Vamos agora implementar um endpoint que não irá exigir nenhum conhecimento novo, mas irá preparar mais o terreno para a próxima discussão: GET /usuarios/logado.
+Vamos agora implementar um endpoint que não irá exigir nenhum conhecimento novo, mas irá preparar mais o terreno para a próxima discussão: GET /usuarios/logado:
 
-Comece adicionando o método na camada de modelo de usuários, que recupera dados do usuário a partir do login:
+```ts
+// usuarios/model.ts
+export type Usuario = {
+  nome: string;
+  login: Login;
+  senha: Senha;
+  admin: boolean; // poderia ser também um enum, por exemplo: tipo: 'admin' | 'usuario'
+}
 
-```js
-export async function recuperarDadosDoUsuario (login) {
-  if (login === undefined) {
-    throw new UsuarioNaoAutenticado();
-  }
-  await pausar(25);
-  const usuario = usuarios[login];
-  if (usuario === undefined) {
-    throw new Error('Usuário não encontrado.');
-  }
+const usuarios: Usuario[] = [
+  {
+    nome: 'Pedro',
+    login: 'pedro',
+    senha: '123456',
+    admin: false,
+  },
+  {
+    nome: 'Clara',
+    login: 'clara',
+    senha: '234567',
+    admin: true,
+  },
+];
+```
+
+```ts
+// app.ts
+
+app.get('/usuarios/autenticado', async (req, resp) => {
   return {
-    nome: usuario.nome
-  };
+    usuario: {
+      nome: req.usuario.nome,
+      login: req.usuario.login,
+      admin: req.usuario.admin,
+    }
+  }; // por que não retornamos o objeto req.usuario diretamente?
+});
+```
+
+Vamos agora adicionar um endpoint que permite alterar o nome do usuário:
+
+```ts
+// usuarios/model.ts
+
+export async function alterarNome (usuario: Usuario, novoNome: string): Promise<void> {
+  await pausar(25);
+  usuario.nome = novoNome; // isso funciona pois a referência é a mesma!
+  // em um cenário real, teríamos uma chamada SQL aqui
 }
 ```
 
-E exponha o endpoint (note que em nenhum momento o login ou qualquer tipo de identificação é usado na rota):
+```ts
+// app.ts
 
-```js
-app.get('/usuarios/logado', asyncWrapper(async (req, res) => {
-  const usuario = await recuperarDadosDoUsuario(req.loginDoUsuario);
-  res.send(usuario);
-}));
+import { autenticar, recuperarUsuarioAutenticado, alterarNome } from './usuarios/model';
+
+...
+
+app.put('/usuarios/autenticado/nome', async (req, resp) => {
+  const { nome } = req.body as { nome: string };
+  await alterarNome(req.usuario, nome);
+  resp.status(204);
+});
 ```
-
-Proposta de exercício: implemente um endpoint que permita que o usuário logado altere seu nome. Ele deve responder na rota PUT /usuarios/logado/nome. Aceite um objeto JSON no formato `{ "nome": "Novo nome" }` ao invés de uma string (é boa prática sempre receber um objeto ou array no nível raiz de um endpoint, assim ele permanece extensível).
 
 ## Modularizando o backend usando plugins
 
