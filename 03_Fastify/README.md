@@ -702,8 +702,6 @@ export async function recuperarUsuarioAutenticado (token: IdAutenticacao): Promi
 
 [Exercício 03_detalhes_da_tarefa](exercicios/03_detalhes_da_tarefa/README.md)
 
-Proposta de exercício: implemente um endpoint para retornar detalhes de uma única tarefa, ele deve responder na rota GET /tarefas/:id. Faça com que este endpoint exija autenticação. Faça também com que ele dispare erro caso o usuário logado não seja dono da tarefa (mesmo que seja admin). Lembre-se: comece do model, depois desenvolva o endpoint.
-
 ## Expondo dados do usuário logado e permitindo alterar o nome
 
 Vamos agora implementar um endpoint que não irá exigir nenhum conhecimento novo, mas irá preparar mais o terreno para a próxima discussão: GET /usuarios/logado.
