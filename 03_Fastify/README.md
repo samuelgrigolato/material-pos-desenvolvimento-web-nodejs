@@ -840,15 +840,48 @@ Esse comando inicia o projeto Angular.
 npm install @angular/material
 ```
 
-Atenção: o comando seguinte vai se comportar de modo diferente no npm 7 (que acompanha o node 16). Peer dependencies são resolvidas automaticamente nesta versão do gerenciador.
+Esse comando instala a dependência `@angular/material` no projeto. Execute o comando abaixo para analisar o gráfico de dependências do projeto:
 
-Esse comando instala a dependência `@angular/material` no projeto. Repare que o comando reclama de um `peer dependency` que você precisa instalar manualmente, o `@angular/cdk`. Uma ótima leitura sobre isso pode ser vista aqui: https://stackoverflow.com/questions/26737819/why-use-peer-dependencies-in-npm-for-plugins, e aqui: https://nodejs.org/en/blog/npm/peer-dependencies/ (ver base/node_modules/define_property e define_property na árvore do Angular por exemplo). Também discutiremos sobre isso mais abaixo.
+Para ver mais níveis, aumente o nível de profundidade:
 
 ```
-npm install @angular/cdk
+npm ls --depth=5
 ```
 
-Veja como fica o `package.json`:
+Sim, praticamente a Internet toda.
+
+Execute agora o seguinte comando:
+
+```
+npm ls --depth=5 | grep -C10 debug
+```
+
+Veja que vários pacotes dependem do pacote `debug`, e nem sempre na mesma versão. O node junto com o npm oferecem suporte para um sistema hierárquico de dependências, que torna isso possível. Repare que, no diretório node_modules, cada dependência transitiva tem sua própria cópia do pacote compartilhado.
+
+```
+cat node_modules/debug/package.json
+cat node_modules/finalhandler/node_modules/debug/package.json
+```
+
+Isso só seria um problema com pacotes que expõem sua dependência externamente, por exemplo plugins React. Nesses casos o correto é utilizar `peer dependencies`. Uma ótima leitura sobre isso pode ser vista aqui: https://stackoverflow.com/questions/26737819/why-use-peer-dependencies-in-npm-for-plugins, e aqui: https://nodejs.org/en/blog/npm/peer-dependencies/. É possível analisar a situação das peer dependencies do projeto com o utilitário `check-peer-dependencies`:
+
+```
+npx check-peer-dependencies
+```
+
+Sim, a instalação base do Angular está com um conflito desse tipo:
+
+```
+npm ls --depth=5 | grep -C10 ajv
+cat node_modules/ajv/package.json # versão 8
+cat node_modules/ajv-keywords/package.json # versão 5, que tem uma peer dependency no ajv versáo 8
+cat node_modules/terser-webpack-plugin/node_modules/ajv/package.json # versão 6
+cat node_modules/terser-webpack-plugin/node_modules/ajv-keywords/package.json # versão 3, que tem uma peer dependency no ajv versão 6
+```
+
+O problema poderia ocorrer se de alguma maneira o `ajv-keywords` versão 3 fosse instalado em uma instância do `ajv` versão 8.
+
+Voltando ao `package.json`, veja como ele está:
 
 ```json
 {
@@ -858,46 +891,36 @@ Veja como fica o `package.json`:
     "ng": "ng",
     "start": "ng serve",
     "build": "ng build",
-    "test": "ng test",
-    "lint": "ng lint",
-    "e2e": "ng e2e"
+    "watch": "ng build --watch --configuration development",
+    "test": "ng test"
   },
   "private": true,
   "dependencies": {
-    "@angular/animations": "~8.0.0",
-    "@angular/cdk": "^8.0.1",
-    "@angular/common": "~8.0.0",
-    "@angular/compiler": "~8.0.0",
-    "@angular/core": "~8.0.0",
-    "@angular/forms": "~8.0.0",
-    "@angular/material": "^8.0.1",
-    "@angular/platform-browser": "~8.0.0",
-    "@angular/platform-browser-dynamic": "~8.0.0",
-    "@angular/router": "~8.0.0",
-    "rxjs": "~6.4.0",
-    "tslib": "^1.9.0",
-    "zone.js": "~0.9.1"
+    "@angular/animations": "^16.1.0",
+    "@angular/common": "^16.1.0",
+    "@angular/compiler": "^16.1.0",
+    "@angular/core": "^16.1.0",
+    "@angular/forms": "^16.1.0",
+    "@angular/material": "^16.1.4",
+    "@angular/platform-browser": "^16.1.0",
+    "@angular/platform-browser-dynamic": "^16.1.0",
+    "@angular/router": "^16.1.0",
+    "rxjs": "~7.8.0",
+    "tslib": "^2.3.0",
+    "zone.js": "~0.13.0"
   },
   "devDependencies": {
-    "@angular-devkit/build-angular": "~0.800.0",
-    "@angular/cli": "~8.0.2",
-    "@angular/compiler-cli": "~8.0.0",
-    "@angular/language-service": "~8.0.0",
-    "@types/node": "~8.9.4",
-    "@types/jasmine": "~3.3.8",
-    "@types/jasminewd2": "~2.0.3",
-    "codelyzer": "^5.0.0",
-    "jasmine-core": "~3.4.0",
-    "jasmine-spec-reporter": "~4.2.1",
-    "karma": "~4.1.0",
-    "karma-chrome-launcher": "~2.2.0",
-    "karma-coverage-istanbul-reporter": "~2.0.1",
-    "karma-jasmine": "~2.0.1",
-    "karma-jasmine-html-reporter": "^1.4.0",
-    "protractor": "~5.4.0",
-    "ts-node": "~7.0.0",
-    "tslint": "~5.15.0",
-    "typescript": "~3.4.3"
+    "@angular-devkit/build-angular": "^16.1.4",
+    "@angular/cli": "~16.1.4",
+    "@angular/compiler-cli": "^16.1.0",
+    "@types/jasmine": "~4.3.0",
+    "jasmine-core": "~4.6.0",
+    "karma": "~6.4.0",
+    "karma-chrome-launcher": "~3.2.0",
+    "karma-coverage": "~2.2.0",
+    "karma-jasmine": "~5.1.0",
+    "karma-jasmine-html-reporter": "~2.1.0",
+    "typescript": "~5.1.3"
   }
 }
 ```
@@ -907,18 +930,6 @@ O que são os `scripts`? São utilitários que você deseja deixar documentado n
 As `dependencies` são todas as bibliotecas usadas diretamente pelo seu projeto. Elas são instaladas no diretório `node_modules` (esse diretório *não* deve ser versionado no repositório do projeto). Sempre que uma cópia limpa do projeto for criada, basta executar o comando `npm install` para baixar novamente todas as dependências.
 
 As `devDependencies` são normalmente ferramentas usadas no ambiente de desenvolvimento, mas que não são necessárias para usar uma biblioteca ou rodar o projeto em um ambiente.
-
-Execute o comando abaixo para analisar o gráfico de dependências do projeto:
-
-```
-npm ls
-```
-
-Sim, praticamente a Internet toda. Para ter uma saída um pouco mais legível, limite o nível de folhas:
-
-```
-npm ls --depth=0
-```
 
 ## Semantic Versioning (SemVer)
 
