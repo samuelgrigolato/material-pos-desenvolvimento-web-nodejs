@@ -1,0 +1,109 @@
+openapi: '3.1.0'
+info: 
+  title: Tafeito
+  version: '1.0.0'
+paths:
+  /usuarios/login:
+    post:
+      summary: Autenticar usuário
+      requestBody: 
+        content: 
+          application/json:
+            schema:
+              type: object
+              properties:
+                login:
+                  type: string
+                senha:
+                  type: string
+              required: [ 'login', 'senha' ]
+      responses: 
+        200:
+          description: Autenticado com sucesso.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                    format: uuid
+                required: [ 'token' ]
+        400:
+          $ref: '#/components/responses/RequisicaoInvalida'
+        422:
+          $ref: '#/components/responses/DadosDaRequisicaoInvalidos'
+        500:
+          $ref: '#/components/responses/BugOuServidorIndisponivel'
+  /tarefas:
+    get:
+      summary: Carregar tarefas do usuário logado.
+      parameters: 
+        - name: termo
+          in: query
+          schema:
+            type: string
+      responses: 
+        200:
+          description: Lista de tarefas.
+          content: 
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    descricao:
+                      type: string
+                  required: [ 'descricao' ]
+        400:
+          $ref: '#/components/responses/RequisicaoInvalida'
+        401:
+          $ref: '#/components/responses/NaoAutenticadoOuTokenInvalido'
+        403:
+          $ref: '#/components/responses/NaoAutorizado'
+        500:
+          $ref: '#/components/responses/BugOuServidorIndisponivel'
+servers: 
+  - url: 'http://localhost:3000'
+components:
+  responses:
+    RequisicaoInvalida:
+      description: O formato não foi reconhecido.
+      content: 
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+            required: [ 'message' ]
+    DadosDaRequisicaoInvalidos:
+      description: O formato está ok mas os dados não.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              mensagem:
+                type: string
+              extra:
+                type: object
+                properties:
+                  codigo:
+                    type: string
+                required: [ 'codigo' ]
+            required: [ 'mensagem', 'extra' ]
+    NaoAutenticadoOuTokenInvalido:
+      description: Você deve incluir um token de autenticação válido para efetuar essa chamada.
+    NaoAutorizado:
+      description: Você está autenticado mas não possui acesso ao recurso solicitado.
+    BugOuServidorIndisponivel:
+      description: Ocorreu um erro de servidor ou ele encontra-se indisponível.
+  securitySchemes: 
+    token:
+      type: http
+      scheme: bearer
+      bearerFormat: uuid
+security: 
+  - token:

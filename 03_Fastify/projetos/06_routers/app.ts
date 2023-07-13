@@ -1,4 +1,5 @@
 import fastify from 'fastify';
+import fastifyCors from '@fastify/cors';
 
 import { consultarTarefaPeloId, cadastrarTarefa, consultarTarefas, DadosTarefa } from './tarefas/model';
 import { recuperarUsuarioAutenticado } from './usuarios/model';
@@ -6,6 +7,7 @@ import usuariosRouter from './usuarios/router';
 import { ErroNoProcessamento } from './shared/erros';
 
 const app = fastify({ logger: true });
+app.register(fastifyCors, { origin: '*' });
 
 app.setNotFoundHandler((req, resp) => {
   resp.status(404).send({ erro: 'Rota não encontrada' });

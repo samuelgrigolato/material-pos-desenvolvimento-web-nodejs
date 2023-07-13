@@ -996,21 +996,21 @@ A especificação Swagger surgiu em 2011 como uma maneira de documentar APIs. Ex
 
 Como é muito mais fácil entender o funcionamento de uma ferramenta geradora de documentação após ter tido a experiência de escrevê-la manualmente, é assim que faremos aqui.
 
-Atualmente existe um formato aberto, desvinculado da empresa Swagger, chamado OpenAPI. Ele é fortemente baseado na especificação Swagger, por isso na prática o conhecimento adquirido vale para os dois. Existe uma ferramenta chamada [Swagger Editor](https://editor.swagger.io/), que utilizaremos para escrever nossa documentação.
+Atualmente existe um formato aberto, desvinculado da empresa Swagger, chamado OpenAPI. Ele é fortemente baseado na especificação Swagger, por isso na prática o conhecimento adquirido vale para os dois. Existe uma ferramenta chamada [Swagger Editor](https://editor.swagger.io/). Esse editor não suporta ainda a versão 3.1.0 da especificação OpenAPI (bem recente), então utilizaremos sua versão "next" durante as aulas: https://editor-next.swagger.io/.
 
 Comece com um único atributo definindo a versão da especificação:
 
 ```yaml
-openapi: 3.0.1
+openapi: '3.1.0'
 ```
 
 Note que o editor comeca a ajudar indicando as coisas que estão faltando. Adicione detalhes básicos de identificação e um objeto vazio de caminhos.
 
 ```yaml
-openapi: 3.0.1
+openapi: '3.1.0'
 info:
-  title: Tarefas
-  version: 1.0.0
+  title: Tafeito
+  version: '1.0.0'
 paths: {}
 ```
 
@@ -1018,18 +1018,18 @@ Essa é a versão mínima de uma especificação, note que o editor começa a mo
 
 ```yaml
 servers:
-  - url: http://localhost:8080
+  - url: 'http://localhost:3000'
 ```
 
 Próximo passo é especificar como funciona a autenticação na API. Isso ocorre definindo um esquema de segurança e depois aplicando ele globalmente:
 
 ```yaml
-openapi: 3.0.1
+openapi: '3.1.0'
 info:
-  title: Tarefas
-  version: 1.0.0
+  title: Tafeito
+  version: '1.0.0'
 servers:
-  - url: http://localhost:8080
+  - url: 'http://localhost:3000'
 paths: {}
 components:
   securitySchemes:
@@ -1071,6 +1071,19 @@ paths:
                     type: string
                     format: uuid
                 required: [ 'token' ]
+```
+
+Note que o editor possui uma funcionalidade que permite testar o endpoint. Isso é muito útil mas, se tentarmos testar no nosso projeto, ocorrerá um erro de CORS. Como este é um projeto de teste vamos configurar a aplicação para permitir requisições de qualquer domínio de Internet. Isso no Fastify pode ser feito através da instalação do plugin `@fastify/cors`:
+
+```
+$ npm i @fastify/cors
+```
+
+```ts
+// app.js
+import fastifyCors from '@fastify/cors';
+
+app.register(fastifyCors, { origin: '*' });
 ```
 
 E os possíveis erros? Neste caso vale a pena adotar uma estratégia de reutilização. Especificamos uma vez e reusamos em todos os endpoints. Veja:
@@ -1115,14 +1128,14 @@ components:
   responses:
     RequisicaoInvalida:
       description: O formato não foi reconhecido.
-      content:
+      content: 
         application/json:
           schema:
             type: object
             properties:
-              razao:
+              message:
                 type: string
-            required: [ 'razao' ]
+            required: [ 'message' ]
     DadosDaRequisicaoInvalidos:
       description: O formato está ok mas os dados não.
       content:
@@ -1130,39 +1143,21 @@ components:
           schema:
             type: object
             properties:
-              codigo:
+              mensagem:
                 type: string
-              descricao:
-                type: string
-            required: [ 'codigo', 'descricao' ]
-    NaoAutenticado:
-      description: Você deve incluir um token de autenticação para efetuar essa chamada.
-    NaoAutorizadoOuTokenInvalido:
-      description: Seu token de autenticação é inválido, expirou ou você está autenticado mas não possui acesso ao recurso solicitado.
-      content:
-        application/json:
-          schema:
-            type: object
-            properties:
-              tipo:
-                type: string
-                enum: [ 'NaoAutorizado', 'TokenInvalido' ]
-            required:
-            - tipo
-    TokenInvalido:
-      description: Seu token de autenticação é inválido ou expirou.
-      content:
-        application/json:
-          schema:
-            type: object
-            properties:
-              tipo:
-                type: string
-                enum: [ 'TokenInvalido' ]
-            required:
-            - tipo
+              extra:
+                type: object
+                properties:
+                  codigo:
+                    type: string
+                required: [ 'codigo' ]
+            required: [ 'mensagem', 'extra' ]
+    NaoAutenticadoOuTokenInvalido:
+      description: Você deve incluir um token de autenticação válido para efetuar essa chamada.
+    NaoAutorizado:
+      description: Você está autenticado mas não possui acesso ao recurso solicitado.
     BugOuServidorIndisponivel:
-      description: Ocorreu um erro no servidor ou ele encontra-se indisponível.
+      description: Ocorreu um erro de servidor ou ele encontra-se indisponível.
   securitySchemes:
 # ...
 ```
@@ -1174,15 +1169,15 @@ Vamos agora especificar o GET /tarefas:
   /tarefas:
     get:
       summary: Carregar tarefas do usuário logado.
-      parameters:
+      parameters: 
         - name: termo
           in: query
           schema:
             type: string
-      responses:
+      responses: 
         200:
           description: Lista de tarefas.
-          content:
+          content: 
             application/json:
               schema:
                 type: array
@@ -1195,19 +1190,15 @@ Vamos agora especificar o GET /tarefas:
         400:
           $ref: '#/components/responses/RequisicaoInvalida'
         401:
-          $ref: '#/components/responses/NaoAutenticado'
+          $ref: '#/components/responses/NaoAutenticadoOuTokenInvalido'
         403:
-          $ref: '#/components/responses/TokenInvalido'
+          $ref: '#/components/responses/NaoAutorizado'
         500:
           $ref: '#/components/responses/BugOuServidorIndisponivel'
 # ...
 ```
 
-Proposta de exercício: documente os seguintes endpoints:
-
-- POST /tarefas
-- GET /usuarios/logado
-- PUT /usuarios/logado/nome
+[Exercício 05_doc_api](exercicios/05_doc_api/README.md)
 
 ## Validação de dados de entrada
 
