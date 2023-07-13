@@ -936,7 +936,7 @@ As `devDependencies` são normalmente ferramentas usadas no ambiente de desenvol
 Dê uma olhada nas dependências do projeto usado para testes na seção anterior. O que significam, exatamente, as definições de versão nas dependências? Por exemplo:
 
 ```
-"@angular/cli": "~8.0.2"
+"@angular/cli": "~16.1.4"
 ```
 
 Todo pacote Node que é publicado em um repositório (como o npmjs.com, por exemplo) precisa ter um nome e uma versão. Essa versão precisa ser compatível com o conceito de versão semântica (SemVer [1][2]). De forma resumida, versionamento semântico é composto por três números:
@@ -950,32 +950,32 @@ O primeiro é a versão `MAJOR`. O segundo, a `MINOR`, e o terceiro, `PATCH`. A 
 Com isso, é possível dizer para o NPM quais versões de determinada biblioteca você entende que seu projeto suporta. A maneira mais engessada seria dizer *exatamente* qual versão usar, por exemplo:
 
 ```
-"@angular/cli": "8.0.2"
+"@angular/cli": "16.1.4"
 ```
 
-Neste caso, não importa quantas novas versões da biblioteca já foram publicadas, esse projeto sempre vai usar a versão `8.0.2`. Uma outra forma é permitir que o npm baixe versões `PATCH` mais novas automaticamente. Isso pode ser atingido de diversas formas:
+Neste caso, não importa quantas novas versões da biblioteca já foram publicadas, esse projeto sempre vai usar a versão `16.1.4`. Uma outra forma é permitir que o npm baixe versões `PATCH` mais novas automaticamente. Isso pode ser atingido de diversas formas:
 
 ```
-"@angular/cli": "8.0"
-"@angular/cli": "8.0.x"
-"@angular/cli": "8.0.X"
-"@angular/cli": "8.0.*"
-"@angular/cli": "~8.0.2"
-"@angular/cli": ">=8.0.2 <8.1"
-"@angular/cli": "8.0.2 - 8.0"
+"@angular/cli": "16.1"
+"@angular/cli": "16.1.x"
+"@angular/cli": "16.1.X"
+"@angular/cli": "16.1.*"
+"@angular/cli": "~16.1.4"
+"@angular/cli": ">=16.1.4 <16.2"
+"@angular/cli": "16.1.4 - 16.2"
 ```
 
-Note que as 4 primeiras opções vão aceitar a versão `8.0.1` se esta estiver disponível, enquanto as 3 últimas são um pouco mais restritivas.
+Note que as 4 primeiras opções vão aceitar a versão `16.1.1` se esta estiver disponível, enquanto as 3 últimas são um pouco mais restritivas.
 
 De modo similar, você pode ser ainda mais flexível, e aceitar incrementos `MINOR` de forma automática:
 
 ```
-"@angular/cli": "~8"
-"@angular/cli": "8.x"
-"@angular/cli": "8"
-"@angular/cli": ">=8.0.2 <9"
-"@angular/cli": ">=8.0.2 - 8"
-"@angular/cli": "^8.0.2"
+"@angular/cli": "~16"
+"@angular/cli": "16.x"
+"@angular/cli": "16"
+"@angular/cli": ">=16.1.4 <17"
+"@angular/cli": ">=16.1.4 - 17"
+"@angular/cli": "^16.1.4"
 ```
 
 E se estiver se sentindo aventureiro, pode até mesmo aceitar qualquer versão da biblioteca:
