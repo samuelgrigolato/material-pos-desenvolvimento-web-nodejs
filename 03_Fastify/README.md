@@ -1266,91 +1266,56 @@ Nesta disciplina nós vamos misturar RPC com RESTful, dando preferência para RE
 Vamos então desenvolver a opção 2. Comece adaptando o arquivo `tarefas/model.ts`:
 
 ```ts
-// ...
+...
 
-let sequencial = 3;
-const tarefas = [
-  {
-    id: 1,
-    loginDoUsuario: 'pedro',
-    descricao: 'Comprar leite',
-    dataDeConclusao: null
-  },
-  {
-    id: 2,
-    loginDoUsuario: 'pedro',
-    descricao: 'Trocar lâmpada',
-    dataDeConclusao: new Date()
-  },
-  {
-    id: 3,
-    loginDoUsuario: 'clara',
-    descricao: 'Instalar torneira',
-    dataDeConclusao: null
-  }
-];
-
-export async function cadastrarTarefa (tarefa, loginDoUsuario) {
-  // ...
-  sequencial++;
-  tarefas.push({
-    id: sequencial,
-    loginDoUsuario,
-    dataDeConclusao: null,
-    ...tarefa
-  });
-  return sequencial;
-}
-
-export async function consultarTarefas (termo, loginDoUsuario) {
-  // ...
-    tarefasDisponiveis = tarefasDisponiveis
-      .filter(x => x["descricao"].toLowerCase().indexOf(termo.toLowerCase()) >= 0);
-  }
-  return tarefasDisponiveis.map(x => ({
-    id: x.id,
-    descricao: x.descricao,
-    concluida: !!x.dataDeConclusao
-  }));
-}
-
-// ...
-
-export async function buscarTarefa (id, loginDoUsuario) {
-  // ...
-    throw new AcessoNegado();
-  }
-  return {
-    descricao: tarefa.descricao,
-    concluida: !!tarefa.dataDeConclusao
+type Tarefa =
+  DadosTarefa
+  & {
+    id: IdTarefa,
+    loginDoUsuario: Login,
+    dataDaConclusao: Date | null,
   };
-}
 
-export async function concluirTarefa (id, loginDoUsuario) {
-  if (loginDoUsuario === undefined) {
+...
+
+  // em cadastrarTarefa
+  const tarefa = {
+    ...dados,
+    id: idTarefa,
+    loginDoUsuario: usuario.login,
+    dataDaConclusao: null,
+  };
+
+...
+
+export async function concluirTarefa(usuario: Usuario | null, id: IdTarefa): Promise<void> {
+  if (usuario === null) {
     throw new UsuarioNaoAutenticado();
   }
-  await pausar(25);
-  const tarefa = tarefas.find(x => x['id'] === parseInt(id));
+  await pausar(100);
+  const tarefa = tarefas.find(x => x.id === id);
   if (tarefa === undefined) {
-    throw new DadosOuEstadoInvalido('TarefaNaoEncontrada', 'Tarefa não encontrada.');
+    throw new DadosOuEstadoInvalido('Tarefa não encontrada', {
+      codigo: 'TAREFA_NAO_ENCONTRADA'
+    });
   }
-  if (tarefa['loginDoUsuario'] !== loginDoUsuario) {
+  if (tarefa.loginDoUsuario !== usuario.login) {
     throw new AcessoNegado();
   }
-  if (tarefa.dataDeConclusao === null) {
-    tarefa.dataDeConclusao = new Date(); // expor um boolean não significa que temos que armazenar um, checkmate scaffolders.
-  } // sem else para garantir idempotência
+  tarefa.dataDaConclusao = new Date();
+  console.log('concluiu', tarefa);
 }
 ```
 
 E agora exponha o endpoint no roteador `tarefas/router.ts`:
 
-```js
-router.post('/:id/concluir', asyncWrapper(async (req, res) => {
-  await concluirTarefa(req.params.id, req.loginDoUsuario);
-  res.sendStatus(204);
-}));
+```ts
+app.post('/:id/concluir', async (req, resp) => {
+  const { id } = req.params as { id: string };
+  const idTarefa = Number(id);
+  await concluirTarefa(req.usuario, idTarefa);
+  resp.status(204);
+});
 ```
 
-Proposta de exercício: implemente o endpoint POST /tarefas/:id/reabrir. Lembre-se da idempotência, e do fato de reabrir significar nada mais que atribuir `null` para `dataDeConclusao`. O que acontece com o histórico? Um bom momento para discutir Event Sourcing.
+[Exercício 07_concluindo_e_reabrindo](exercicios/07_concluindo_e_reabrindo/README.md)
