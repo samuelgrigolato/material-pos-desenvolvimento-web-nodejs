@@ -74,7 +74,7 @@ Agora adicione os seguintes scripts no `package.json`, para facilitar no desenvo
 
 Uma vez com o Fastify instalado, é possível utilizá-lo. Crie um arquivo `app.ts` com o seguinte conteúdo:
 
-```js
+```ts
 import fastify from 'fastify';
 
 const app = fastify({ logger: true });
@@ -130,7 +130,7 @@ export async function cadastrarTarefa(dados: DadosTarefa): Promise<IdTarefa> {
 }
 ```
 
-Use o método agora no arquivo `app.js`:
+Use o método agora no arquivo `app.ts`:
 
 ```ts
 import { cadastrarTarefa, DadosTarefa } from './tarefas/model';
@@ -145,7 +145,7 @@ app.post('/tarefas', async (req, resp) => {
 
 O que acontece se o método `cadastrarTarefa` disparar um erro?
 
-```js
+```ts
 export async function cadastrarTarefa (tarefa) {
   await pausar(1000);
   throw Error('algo deu errado');
@@ -194,9 +194,9 @@ Existem algumas preocupações recorrentes no desenvolvimento de APIs:
 
 ## Hooks
 
-Algumas características das nossas APIs devem se aplicar de forma homogênea independentemente do endpoint. Um exemplo é a autenticação, visto que não faz sentido duplicarmos o código que autentica nosso usuário em todos os endpoints. Para esse tipo de situação o Fastify oferece o conceito de `hooks`. Para verificar seu funcionamento, crie um novo diretório, dentro dele um arquivo `app.js` (não se esqueça também do `package.json`, `tsconfig.json` e `.gitignore`) e adicione o código abaixo:
+Algumas características das nossas APIs devem se aplicar de forma homogênea independentemente do endpoint. Um exemplo é a autenticação, visto que não faz sentido duplicarmos o código que autentica nosso usuário em todos os endpoints. Para esse tipo de situação o Fastify oferece o conceito de `hooks`. Para verificar seu funcionamento, crie um novo diretório, dentro dele um arquivo `app.ts` (não se esqueça também do `package.json`, `tsconfig.json` e `.gitignore`) e adicione o código abaixo:
 
-```js
+```ts
 import fastify from 'fastify';
 
 const app = fastify({ logger: true });
@@ -252,7 +252,7 @@ Um bom exemplo é o plugin `fastify-static`. Ele é usado para facilitar a dispo
 $ npm install @fastify/static
 ```
 
-Agora instale-o no arquivo `app.js`:
+Agora instale-o no arquivo `app.ts`:
 
 ```ts
 import fastifyStatic from '@fastify/static';
@@ -371,7 +371,7 @@ function gerarId (): IdAutenticacao {
 }
 ```
 
-Adicione agora o seguinte endpoint no arquivo `app.js`:
+Adicione agora o seguinte endpoint no arquivo `app.ts`:
 
 ```ts
 import { autenticar } from './usuarios/model';
@@ -399,7 +399,7 @@ Teste agora com dados válidos:
 $ http -v post http://localhost:3000/usuarios/login login=clara senha=234567
 ```
 
-Isso cuida da geração do token, mas e o uso? A melhor maneira de implementar é através de um hook que verifica se existe o header `Authorization` (péssimo nome, infelizmente, pois estamos falando de autenticação). Esse header tem várias opções de preenchimento, no nosso caso o que mais se aproxima é o formato `Bearer [TOKEN]`, ex: `Bearer 934e2282-077b-440a-9ecc-350d658d2cb5`. Antes de mais nada adicione uma função no arquivo `usuarios\model.js` que retorna o login do usuário dado um ID de autenticação:
+Isso cuida da geração do token, mas e o uso? A melhor maneira de implementar é através de um hook que verifica se existe o header `Authorization` (péssimo nome, infelizmente, pois estamos falando de autenticação). Esse header tem várias opções de preenchimento, no nosso caso o que mais se aproxima é o formato `Bearer [TOKEN]`, ex: `Bearer 934e2282-077b-440a-9ecc-350d658d2cb5`. Antes de mais nada adicione uma função no arquivo `usuarios\model.ts` que retorna o login do usuário dado um ID de autenticação:
 
 ```ts
 export async function recuperarLoginDoUsuarioAutenticado (token: IdAutenticacao): Promise<Login> {
@@ -521,7 +521,7 @@ export type Login = string;
 
 E adapte agora no arquivo `app.ts`:
 
-```js
+```ts
 app.post('/tarefas', async (req, resp) => {
   const dados = req.body as DadosTarefa;
   const id = await cadastrarTarefa(req.loginDoUsuario, dados);
@@ -588,7 +588,7 @@ app.setErrorHandler((err, req, resp) => {
 
 Essa funcionalidade nos permite definir uma coleção de exceções que, ao serem disparadas dos handlers, vão cair nesse handler de erro. Crie um arquivo `shared/erros.ts`:
 
-```js
+```ts
 
 export abstract class ErroNoProcessamento extends Error {
   readonly statusCode: number;
@@ -674,9 +674,9 @@ export async function consultarTarefas(usuario: Usuario | null, termo?: string):
   }
 ```
 
-E também no `usuarios\model.js`:
+E também no `usuarios\model.ts`:
 
-```js
+```ts
 import { AutenticacaoInvalida, DadosOuEstadoInvalido } from '../shared/erros';
 
 ...
@@ -773,7 +773,7 @@ app.put('/usuarios/autenticado/nome', async (req, resp) => {
 
 ## Modularizando o backend usando plugins
 
-Dê uma olhada no arquivo `app.ts`. Repare que ele está crescendo a cada endpoint novo que adicionamos, o que claramente não vai ficar legal para projetos com dezenas ou centenas de endpoints. Qual seria então a melhor maneira de começar a controlar esse aumento de complexidade? A resposta do Fastify é mais uma vez o uso de `plugins`. Um plugin também pode ser compreendido como uma mini aplicação Fastify (igualzinha à instância `app`), capaz de ser embutida em outras aplicações, opcionalmente vinculado a um subcaminho. Vamos aplicar este conceito na nossa API de tarefas, primeiro extraindo um plugin para o caminho `/usuarios`. Comece criando o arquivo `usuarios/router.js`:
+Dê uma olhada no arquivo `app.ts`. Repare que ele está crescendo a cada endpoint novo que adicionamos, o que claramente não vai ficar legal para projetos com dezenas ou centenas de endpoints. Qual seria então a melhor maneira de começar a controlar esse aumento de complexidade? A resposta do Fastify é mais uma vez o uso de `plugins`. Um plugin também pode ser compreendido como uma mini aplicação Fastify (igualzinha à instância `app`), capaz de ser embutida em outras aplicações, opcionalmente vinculado a um subcaminho. Vamos aplicar este conceito na nossa API de tarefas, primeiro extraindo um plugin para o caminho `/usuarios`. Comece criando o arquivo `usuarios/router.ts`:
 
 ```ts
 import { FastifyInstance } from 'fastify';
@@ -1080,7 +1080,7 @@ $ npm i @fastify/cors
 ```
 
 ```ts
-// app.js
+// app.ts
 import fastifyCors from '@fastify/cors';
 
 app.register(fastifyCors, { origin: '*' });
