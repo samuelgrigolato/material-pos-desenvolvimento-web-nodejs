@@ -6,11 +6,11 @@ Para evitar que os dados se percam entre execuções do seu software a solução
 
 Seria possível então usar o sistema de arquivos para obter armazenamento persistente? Com certeza. Para demonstrar, vamos adaptar o model de tarefas para usar o sistema de arquivos (de uma forma muito ingênua, jamais use isso em produção) ao invés de armazenamento em memória. A estratégia será:
 
-- Sumir com a variável `tarefas` e `sequencial`;
+- Sumir com as variáveis `tarefas` e `sequencial`;
 - Criar uma função `carregarTarefas` que lê um arquivo com os dados;
 - Criar uma função `armazenarTarefas` que substitui esses dados.
 
-Comece criando um arquivo `dados.json` (a extensão não é obrigatória mas ajuda a lembrar do conteúdo) do lado do arquivo `app.js` do projeto. Coloque nele este conteúdo:
+Comece criando um arquivo `dados.json` (a extensão não é obrigatória mas ajuda a lembrar do conteúdo) do lado do arquivo `app.ts` do projeto. Coloque nele este conteúdo:
 
 ```json
 {
@@ -20,99 +20,74 @@ Comece criando um arquivo `dados.json` (a extensão não é obrigatória mas aju
       "id": 1,
       "loginDoUsuario": "pedro",
       "descricao": "Comprar leite",
-      "dataDeConclusao": null
+      "dataDaConclusao": null
     },
     {
       "id": 2,
       "loginDoUsuario": "pedro",
       "descricao": "Trocar lâmpada",
-      "dataDeConclusao": "2021-05-03T10:30:00"
+      "dataDaConclusao": "2021-05-03T10:30:00"
     },
     {
       "id": 3,
       "loginDoUsuario": "clara",
       "descricao": "Instalar torneira",
-      "dataDeConclusao": null
+      "dataDaConclusao": null
     }
   ]
 }
 ```
 
-No arquivo `tarefas/model.js` remova as variáveis `sequencial`, `tarefas`, adicione os métodos `carregarTarefas` e `carregarTarefas` e ajuste as outras funções exportadas (note também que o `pausar` não é mais necessário):
+No arquivo `tarefas/model.ts`, remova as variáveis `sequencial`, `tarefas`, adicione os métodos `carregarTarefas` e `armazenarTarefas`, e ajuste as outras funções exportadas (note também que o `pausar` não é mais necessário):
 
-```js
+```ts
 import { readFile, writeFile } from 'fs/promises';
 
-import { AcessoNegado, DadosOuEstadoInvalido, UsuarioNaoAutenticado } from '../erros.js';
-import { isAdmin } from '../usuarios/model.js';
+type Dados = {
+  sequencial: number,
+  tarefas: Tarefa[],
+};
 
-async function carregarTarefas () {
-  const str = await readFile("dados.json", "utf-8");
-  return JSON.parse(str);
+async function carregarTarefas(): Promise<Dados> {
+  const dados = await readFile('dados.json', 'utf-8');
+  return JSON.parse(dados);
 }
 
-async function armazenarTarefas(tarefas, sequencial) {
-  const dados = { sequencial, tarefas };
-  await writeFile("dados.json", JSON.stringify(dados, undefined, 2), {
-    encoding: "utf-8"
-  });
+async function armazenarTarefas(dados: Dados): Promise<void> {
+  await writeFile('dados.json', JSON.stringify(dados, undefined, 2), 'utf-8');
 }
 
-export async function cadastrarTarefa (tarefa, loginDoUsuario) {
-  if (loginDoUsuario === undefined) {
+...
+
+export async function cadastrarTarefa(usuario: Usuario | null, dados: DadosTarefa): Promise<IdTarefa> {
+  if (usuario === null) {
     throw new UsuarioNaoAutenticado();
   }
-  let { sequencial, tarefas } = await carregarTarefas();
+  let { tarefas, sequencial } = await carregarTarefas();
   sequencial++;
-  tarefas.push({
-    id: sequencial,
-    loginDoUsuario,
-    dataDeConclusao: null,
-    ...tarefa
-  });
-  await armazenarTarefas(tarefas, sequencial);
-  return sequencial;
+  const idTarefa = sequencial;
+  const tarefa = {
+    ...dados,
+    id: idTarefa,
+    loginDoUsuario: usuario.login,
+    dataDaConclusao: null,
+  };
+  tarefas.push(tarefa);
+  await armazenarTarefas({ tarefas, sequencial });
+  console.log('cadastrou', tarefa);
+  return idTarefa;
 }
 
-export async function consultarTarefas (termo, loginDoUsuario) {
-  if (loginDoUsuario === undefined) {
-    throw new UsuarioNaoAutenticado();
-  }
+...
+
   const { tarefas } = await carregarTarefas();
-  const usuarioIsAdmin = await isAdmin(loginDoUsuario);
-  let tarefasDisponiveis = usuarioIsAdmin ? tarefas : tarefas.filter(x => x['loginDoUsuario'] === loginDoUsuario);
-//...
-}
+  return tarefas
+    .filter(x => usuario.admin || x.loginDoUsuario === usuario.login)
+    .filter(x => !termo || x.descricao.includes(termo));
 
-export async function contarTarefasAbertas (loginDoUsuario) {
-  if (loginDoUsuario === undefined) {
-    throw new UsuarioNaoAutenticado();
-  }
-  const { tarefas } = await carregarTarefas();
-  return tarefas.filter(x => x['loginDoUsuario'] === loginDoUsuario).length;
-}
+...
 
-export async function buscarTarefa (id, loginDoUsuario) {
-  if (loginDoUsuario === undefined) {
-    throw new UsuarioNaoAutenticado();
-  }
-  const { tarefas } = await carregarTarefas();
-  const tarefa = tarefas.find(x => x['id'] === parseInt(id));
-//...
-}
-
-export async function concluirTarefa (id, loginDoUsuario) {
-  if (loginDoUsuario === undefined) {
-    throw new UsuarioNaoAutenticado();
-  }
-  let { sequencial, tarefas } = await carregarTarefas();
-  const tarefa = tarefas.find(x => x['id'] === parseInt(id));
-//...
-  if (tarefa.dataDeConclusao === null) {
-    tarefa.dataDeConclusao = new Date().toISOString(); // expor um boolean não significa que temos que armazenar um, checkmate scaffolders.
-  } // sem else para garantir idempotência
-  await armazenarTarefas(tarefas, sequencial);
-}
+// mesma coisa nos outros métodos
 ```
 
 Quais os problemas com essa implementação? Por qual motivo não devemos utilizar esse tipo de estratégia em um backend? Considere:
