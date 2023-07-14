@@ -1208,159 +1208,49 @@ O ideal é que todo tipo de entrada de dado seja verificado antes de executar qu
 
 Uma maneira de executar essas validações seria, no próprio endpoint, implementar uma cadeia de condicionais e afins. Por mais que seja funcional, é uma maneira bem verbosa e improdutiva de desenvolver esse tipo de checagem.
 
-Uma outra forma, especialmente útil em Node.js pois já estamos trabalhando com JSON, é o uso de [JSON Schema](https://json-schema.org/) (fizemos isso já na seção anterior, definindo o schema de entrada da API). A abordagem se resume a:
+Uma outra forma, especialmente útil em Node.js pois já estamos trabalhando com JSON, é o uso de [JSON Schema](https://json-schema.org/) (fizemos isso já na seção anterior, definindo o schema de entrada da API). Felizmente o Fastify possui suporte nativo para isso, basta passar a opção de configuração `schema` ao configurar uma rota:
 
-- Instalar uma ferramenta que permita validar um objeto JSON baseado em uma definição de JSON Schema;
-- Declarar o schema;
-- Chamar o método que valida o objeto, passando o schema, e deixar os erros gerarem um retorno 422 conforme especificado por nós (isso pode variar em outras APIs).
+```ts
+// tarefas/router.ts
+import { FastifyInstance, FastifySchema } from 'fastify';
 
-Vamos começar instalando o pacote `ajv` (um dos validadores de esquema disponíveis para Node.js). Lembre-se de executar o comando abaixo na pasta da API de tarefas:
+...
 
-```sh
-$ npm install ajv
-```
-
-Agora vá até o roteador de usuários `usuarios/router.js`, defina o schema do endpoint de login e aplique a validação:
-
-```js
-import express from 'express';
-import Ajv from 'ajv';
-
-// ...
-
-const router = express.Router();
-const ajv = new Ajv();
-
-const loginSchema = {
-  type: 'object',
-  properties: {
-    login: { type: 'string' },
-    senha: { type: 'string' }
+const postSchema: FastifySchema = {
+  body: {
+    type: 'object',
+    properties: {
+      descricao: { type: 'string' },
+    },
+    required: ['descricao'],
+    additionalProperties: false,
   },
-  required: [ 'login', 'senha' ]
-};
-const loginSchemaValidator = ajv.compile(loginSchema);
-
-router.post('/login', asyncWrapper(async (req, res) => {
-  if (!loginSchemaValidator(req.body)) {
-    throw new DadosOuEstadoInvalido('FalhouValidacaoEsquema', ajv.errorsText(loginSchemaValidator.errors), loginSchemaValidator.errors);
-  }
-  const { login, senha } = req.body; // lembre-se do middleware express.json
-  const autenticacao = await autenticar(login, senha);
-  res.send({ autenticacao });
-}));
-
-// ...
-```
-
-Tente passar uma propriedade extra na requisição. Repare que o ajv não vai reclamar. Isso pode ou não ser desejado, mas a boa prática é rejeitar esse tipo de chamada ou no mínimo remover quaisquer atributos adicionais. Para rejeitar entradas lembre-se de definir `additionalProperties: false` em todos os schemas do tipo `object`:
-
-```js
-const loginSchema = {
-  type: 'object',
-  properties: {
-    login: { type: 'string' },
-    senha: { type: 'string' }
+  response: {
+    201: {
+      type: 'object',
+      properties: {
+        id: { type: 'number' },
+      },
+      required: ['id'],
+    },
   },
-  required: [ 'login', 'senha' ],
-  additionalProperties: false
 };
-```
 
-Para remover propriedades adicionais de todos os objetos validados, use a configuração `removeAdditional` no objeto de configuração do ajv:
+...
 
-```js
-new Ajv({ removeAdditional: true });
-```
-
-Como consumidor eu prefiro receber um erro, como fornecedor eu prefiro a opção global que evita falha humana e brechas de segurança. Esse é um dos casos em que é difícil escolher a melhor opção.
-
-Remova agora os dois campos e execute, note que o ajv parou no primeiro erro. Isso é bom pensando em performance, mas é bem ruim para o consumidor da sua API (principalmente se ele estiver atualizando o frontend com base nesse detalhamento do erro). Existe uma outra configuração do ajv que muda esse comportamento, validando sempre todo o objeto:
-
-```js
-new Ajv({
-  removeAdditional: true,
-  allErrors: true
+app.post('/', { schema: postSchema }, async (req, resp) => {
+  const dados = req.body as DadosTarefa;
+  const id = await cadastrarTarefa(req.usuario, dados);
+  resp.status(201);
+  return { id };
 });
 ```
 
-Proposta de exercício: aplique validação de entrada nos outros endpoints POST e PUT:
+Note que, além de validar o corpo da requisição, definimos um formato para a resposta! Isso é útil para performance e, principalmente, para evitar que informações sensíveis acabem sendo expostas não intencionalmente.
 
-- POST /tarefas
-- PUT /usuarios/logado/nome
+De modo similar, a propriedade `additionalProperties: false` faz com que o próprio Fastify "limpe" o objeto de entrada antes de disponibilizar para o handler da requisição.
 
-## Extraindo um middleware validador de entrada
-
-Você deve ter notado o quão repetitivo o código de validação se tornou. A única coisa que muda de fato é o schema, mas temos que colocar uma série de código em todos os routers e endpoints mesmo assim. Felizmente é possível extrair um Middleware que simplifica muito, de uma forma bem parecida com o que fizemos no `asyncWrapper`. Comece criando um arquivo `schema-validator.js`:
-
-```js
-import Ajv from 'ajv';
-
-import { DadosOuEstadoInvalido } from './erros.js';
-
-const ajv = new Ajv({
-  removeAdditional: true,
-  allErrors: true
-});
-
-export default schema => {
-  const validator = ajv.compile(schema);
-  return (req, _res, next) => {
-    if (!validator(req.body)) {
-      const errors = validator.errors;
-      throw new DadosOuEstadoInvalido('FalhouValidacaoEsquema', ajv.errorsText(errors), errors);
-    }
-    next();
-  };
-};
-```
-
-E use-o no `usuarios/router.js`:
-
-```js
-import express from 'express';
-
-import asyncWrapper from '../async-wrapper.js';
-import schemaValidator from '../schema-validator.js';
-import { DadosOuEstadoInvalido } from '../erros.js';
-import { alterarNomeDoUsuario, autenticar, recuperarDadosDoUsuario } from './model.js';
-
-const router = express.Router();
-
-const loginSchema = {
-  type: 'object',
-  properties: {
-    login: { type: 'string' },
-    senha: { type: 'string' }
-  },
-  required: [ 'login', 'senha' ]
-};
-
-router.post('/login', schemaValidator(loginSchema), asyncWrapper(async (req, res) => {
-  const { login, senha } = req.body; // lembre-se do middleware express.json
-  const autenticacao = await autenticar(login, senha);
-  res.send({ autenticacao });
-}));
-
-// ...
-
-const nomeSchema = {
-  type: 'object',
-  properties: {
-    nome: { type: 'string' }
-  },
-  required: [ 'nome' ]
-};
-
-router.put('/logado/nome', schemaValidator(nomeSchema), asyncWrapper(async (req, res) => {
-  await alterarNomeDoUsuario(req.body.nome, req.loginDoUsuario);
-  res.sendStatus(204);
-}));
-
-export default router;
-```
-
-Proposta de exercício: aplique o middleware `schemaValidator` no roteador de tarefas.
+[Exercício 06_validacao_entrada](exercicios/06_validacao_entrada/README.md)
 
 ## Concluindo e reabrindo tarefas
 
@@ -1373,9 +1263,9 @@ Qual dessas parece mais adequada? A primeira é uma maneira mais RESTful, com ce
 
 Nesta disciplina nós vamos misturar RPC com RESTful, dando preferência para RESTful sempre que possível (nunca adotaremos `POST /tarefas/consultar`, por exemplo).
 
-Vamos então desenvolver a opção 2. Comece adaptando o arquivo `tarefas/model.js`:
+Vamos então desenvolver a opção 2. Comece adaptando o arquivo `tarefas/model.ts`:
 
-```js
+```ts
 // ...
 
 let sequencial = 3;
@@ -1454,7 +1344,7 @@ export async function concluirTarefa (id, loginDoUsuario) {
 }
 ```
 
-E agora exponha o endpoint no roteador `tarefas/router.js`:
+E agora exponha o endpoint no roteador `tarefas/router.ts`:
 
 ```js
 router.post('/:id/concluir', asyncWrapper(async (req, res) => {
