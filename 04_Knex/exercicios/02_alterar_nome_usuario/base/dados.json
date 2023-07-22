@@ -1,0 +1,41 @@
+{
+  "tarefas": [
+    {
+      "id": 1,
+      "loginDoUsuario": "pedro",
+      "descricao": "Comprar leite",
+      "dataDaConclusao": null
+    },
+    {
+      "id": 2,
+      "loginDoUsuario": "pedro",
+      "descricao": "Trocar lâmpada",
+      "dataDaConclusao": "2021-05-03T10:30:00"
+    },
+    {
+      "id": 3,
+      "loginDoUsuario": "clara",
+      "descricao": "Instalar torneira",
+      "dataDaConclusao": null
+    },
+    {
+      "descricao": "Teste 2",
+      "id": 4,
+      "loginDoUsuario": "clara",
+      "dataDaConclusao": null
+    },
+    {
+      "descricao": "Teste 2",
+      "id": 5,
+      "loginDoUsuario": "clara",
+      "dataDaConclusao": null
+    },
+    {
+      "descricao": "Teste 2",
+      "id": 6,
+      "loginDoUsuario": "clara",
+      "dataDaConclusao": null
+    }
+  ],
+  "sequencial": 6
+}

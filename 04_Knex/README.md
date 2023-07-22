@@ -424,61 +424,88 @@ O Knex olha nessa interface para buscar o tipo de um retorno baseado no nome da 
 Vamos agora adequar a função que cria autenticações validando as credenciais do usuário. Dessa vez não vamos armazenar a senha em texto plano, utilizaremos uma biblioteca que permite gerar hashes BCrypt (uma boa opção para este tipo de caso de uso). Comece instalando essa biblioteca:
 
 ```sh
-$ npm install bcryptjs
+$ npm install bcrypt
+$ npm install --save-dev @types/bcrypt
 ```
 
 Abra um console Node.js escrevendo apenas `node` no terminal. Importe a biblioteca e execute o seguinte código para encriptar uma senha:
 
 ```js
-const bcrypt = require('bcryptjs');
+const bcrypt = require('bcrypt');
 console.log(bcrypt.hashSync('123456', 8));
+console.log(bcrypt.hashSync('123456', 12));
+console.log(bcrypt.hashSync('123456', 16));
 ```
 
-Crie agora uma coluna `senha` na tabela de usuários e preencha-a com o valor obtido:
+A partir de agora a coluna `senha` na tabela de usuários *não* conterá mais as senhas em texto plano, mas sim hashes bcrypt da senha:
 
 ```sql
-alter table usuarios add senha text;
-update usuarios set senha = '$2a$08$vV2fkDIM66LxH1.8DS3sTOEE1okecuRUXIg0b4gc9umej4eVJX/Zy'; -- note que isso vai aplicar para TODOS os usuários
-alter table usuarios alter senha set not null;
+update usuarios set senha = '$2b$12$4AbaFz9KpFU2T9MZbinfFeF8qgNsOyMRl8aFxp46eEXRUBIaHfLMK'; -- note que isso vai aplicar para TODOS os usuários
 ```
 
-Por fim adeque a função `autenticar` no arquivo `usuarios/model.js`:
+Por fim adeque a função `autenticar` no arquivo `usuarios/model.ts`:
 
-```js
-import bcrypt from 'bcryptjs';
-//...
-export async function autenticar (login, senha) {
-  const res = await knex('usuarios')
-    .where('login', login)
-    .select('id', 'senha');
-  if (res.lenght === 0) {
-    throw new DadosOuEstadoInvalido('CredenciaisInvalidas', 'Credenciais inválidas.');
+```ts
+import bcrypt from 'bcrypt';
+
+...
+
+export async function autenticar (login: Login, senha: Senha): Promise<IdAutenticacao> {
+  const usuario = await knex('usuarios')
+    .select('login', 'senha', 'nome', 'admin')
+    .where({ login })
+    .first();
+  if (usuario === undefined || (await senhaInvalida(senha, usuario.senha))) {
+    throw new DadosOuEstadoInvalido('Login ou senha inválidos', {
+      codigo: 'CREDENCIAIS_INVALIDAS'
+    });
   }
-  const usuario = res[0];
-  if (!bcrypt.compareSync(senha, usuario.senha)) {
-    throw new DadosOuEstadoInvalido('CredenciaisInvalidas', 'Credenciais inválidas.');
+  const id = gerarId();
+  autenticacoes[id] = usuario;
+  return id;
+}
+
+async function senhaInvalida(senha: string, hash: string): Promise<boolean> {
+  const hashCompativel = await bcrypt.compare(senha, hash);
+  return !hashCompativel;
+}
+```
+
+Falta agora inserir a autenticação na base. Adicione o campo `id` no tipo `Usuario`, busque a informação nos locais necessários e troque a atribuição no objeto `autenticacoes` por um INSERT usando Knex:
+
+```ts
+export type Usuario = {
+  id: number;
+  nome: string;
+  login: Login;
+
+...
+
+export async function autenticar (login: Login, senha: Senha): Promise<IdAutenticacao> {
+  const usuario = await knex('usuarios')
+    .select('id', 'login', 'senha', 'nome', 'admin')
+    .where({ login })
+    .first();
+  if (usuario === undefined || (await senhaInvalida(senha, usuario.senha))) {
+    throw new DadosOuEstadoInvalido('Login ou senha inválidos', {
+      codigo: 'CREDENCIAIS_INVALIDAS'
+    });
   }
-  const autenticacao = uuidv4();
+  const id = gerarId();
   await knex('autenticacoes')
-    .insert({ id: autenticacao, id_usuario: usuario.id });
-  return autenticacao;
+    .insert({ id_usuario: usuario.id, id });
+  return id;
 }
+
+...
+
+export async function recuperarUsuarioAutenticado (token: IdAutenticacao): Promise<Usuario> {
+  const usuario = await knex('autenticacoes')
+    .join('usuarios', 'usuarios.id', 'autenticacoes.id_usuario')
+    .select<Usuario>('usuarios.id', 'login', 'senha', 'nome', 'admin')
 ```
 
-Proposta de exercício: adeque o endpoint `PUT /usuarios/logado/nome`. Caso você tenha feito o tratamento de usuário ser ou não admin, agora é a hora de retirar este código.
-
-```js
-export async function alterarNomeDoUsuario (novoNome, login) {
-  if (login === undefined) {
-    throw new UsuarioNaoAutenticado();
-  }
-  if (novoNome === undefined || novoNome === '') {
-    throw new DadosOuEstadoInvalido('CampoObrigatorio', 'Informe o novo nome.');
-  }
-  await knex('usuarios')
-    .update('nome', novoNome);
-}
-```
+[Exercício 02_alterar_nome_usuario](exercicios/02_alterar_nome_usuario/README.md)
 
 Repare que neste momento *todo* o model de usuários está adaptado! Sem uma única mudança necessária na camada de roteamento.
 

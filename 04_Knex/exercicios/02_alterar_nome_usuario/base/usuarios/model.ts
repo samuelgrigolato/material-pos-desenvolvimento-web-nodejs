@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import util from 'util';
-import sequelizeLib, { Model } from 'sequelize';
+import bcrypt from 'bcrypt';
 
 import { AutenticacaoInvalida, DadosOuEstadoInvalido } from '../shared/erros';
 import knex from '../shared/querybuilder';
@@ -13,6 +13,7 @@ type Senha = string;
 export type Login = string;
 
 export type Usuario = {
+  id: number;
   nome: string;
   login: Login;
   senha: Senha;
@@ -31,27 +32,31 @@ declare module 'knex/types/tables' {
   }
 }
 
-const autenticacoes: { [key: IdAutenticacao]: Usuario } = {};
-
 export async function autenticar (login: Login, senha: Senha): Promise<IdAutenticacao> {
   const usuario = await knex('usuarios')
-    .select('login', 'senha', 'nome', 'admin')
+    .select('id', 'login', 'senha', 'nome', 'admin')
     .where({ login })
     .first();
-  if (usuario === undefined || usuario.senha !== senha) {
+  if (usuario === undefined || (await senhaInvalida(senha, usuario.senha))) {
     throw new DadosOuEstadoInvalido('Login ou senha inválidos', {
       codigo: 'CREDENCIAIS_INVALIDAS'
     });
   }
   const id = gerarId();
-  autenticacoes[id] = usuario;
+  await knex('autenticacoes')
+    .insert({ id_usuario: usuario.id, id });
   return id;
+}
+
+async function senhaInvalida(senha: string, hash: string): Promise<boolean> {
+  const hashCompativel = await bcrypt.compare(senha, hash);
+  return !hashCompativel;
 }
 
 export async function recuperarUsuarioAutenticado (token: IdAutenticacao): Promise<Usuario> {
   const usuario = await knex('autenticacoes')
     .join('usuarios', 'usuarios.id', 'autenticacoes.id_usuario')
-    .select<Usuario>('login', 'senha', 'nome', 'admin')
+    .select<Usuario>('usuarios.id', 'login', 'senha', 'nome', 'admin')
     .where('autenticacoes.id', token)
     .first();
   if (usuario === undefined) {
