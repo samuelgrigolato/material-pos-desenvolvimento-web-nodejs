@@ -153,7 +153,7 @@ O restante dessa disciplina irá focar no armazenamento relacional, mais especif
 O primeiro passo é garantir que você possui um servidor PostgreSQL executando. Uma opção é instalar direto na sua máquina e outra é subir um container docker da imagem oficial `postgres`. Caso opte pelo docker (recomendado), use o comando abaixo para subir o container:
 
 ```sh
-$ docker run -d --name ufscar-desenvweb-2021-1 -p 5432:5432 -e POSTGRES_PASSWORD=postgres postgres
+$ docker run -d --name ufscar-desenvweb-2023-1 -p 5432:5432 -e POSTGRES_PASSWORD=postgres postgres
 ```
 
 No momento da escrita deste material a versão estável mais recente era a 15: https://www.postgresql.org/support/versioning/.
@@ -168,19 +168,21 @@ Antes de discutir como conectar a API na base de dados, vamos criar uma tabela p
 create table usuarios (
   id int not null,
   login text not null,
+  senha text not null, /* nós vamos parar de usar texto plano em algum momento, confia :) */
   nome text not null,
+  admin boolean not null default false,
 
   constraint pk_usuarios primary key (id),
-  constraint un_usuarios unique (login)
+  constraint un_usuarios_login unique (login)
 );
 ```
 
 E depois insira os dados do Pedro e da Clara usando o seguinte DML (linguagem de manipulação de dados):
 
 ```sql
-insert into usuarios (id, login, nome)
-values (1, 'pedro', 'Pedro'),
-  (2, 'clara', 'Clara');
+insert into usuarios (id, login, senha, nome, admin)
+values (1, 'pedro', '123456', 'Pedro', false),
+  (2, 'clara', '234567', 'Clara', true);
 ```
 
 Você pode conferir se os dados foram persistidos usando a seguinte consulta:
@@ -207,11 +209,12 @@ A biblioteca Node.js para conexão com PostgreSQL é a `pg`. Vamos começar inst
 
 ```sh
 $ npm install pg
+$ npm install --save-dev @types/pg
 ```
 
-Crie agora um arquivo chamado `db.js` do lado do `app.js`. Este arquivo vai cuidar da configuração de conexão:
+Crie agora um arquivo chamado `db.ts` na pasta `shared`. Este arquivo vai cuidar da configuração de conexão:
 
-```js
+```ts
 import pg from 'pg';
 
 
@@ -219,6 +222,7 @@ export async function conectar () {
   const client = new pg.Client({
     host: 'localhost',
     port: 5432,
+    database: 'postgres',
     user: 'postgres',
     password: 'postgres'
   }); // note que tudo isso pode (e é boa prática) vir em variáveis de ambiente
@@ -227,23 +231,32 @@ export async function conectar () {
 }
 ```
 
-E agora use essa conexão no método `recuperarDadosDoUsuario` do arquivo `usuarios/model.js`:
+E agora use essa conexão no método `autenticar` do arquivo `usuarios/model.ts`:
 
 ```js
-export async function recuperarDadosDoUsuario (login) {
-  if (login === undefined) {
-    throw new UsuarioNaoAutenticado();
-  }
+import { conectar } from '../shared/db';
+
+...
+
+export async function autenticar (login: Login, senha: Senha): Promise<IdAutenticacao> {
   const conexao = await conectar();
   try {
-    const res = await conexao.query('select nome from usuarios where login = $1;', [ login ]);
-    if (res.rowCount === 0) {
-      throw new Error('Usuário não encontrado.');
+    const res = await conexao.query(
+      'select nome, senha, admin from usuarios where login = $1',
+      [ login ]
+    );
+    const row = res.rows[0];
+    if (row === undefined || row.senha !== senha) {
+      throw new DadosOuEstadoInvalido('Login ou senha inválidos', {
+        codigo: 'CREDENCIAIS_INVALIDAS'
+      });
     }
-    const usuario = res.rows[0];
-    return {
-      nome: usuario['nome']
+    const id = gerarId();
+    autenticacoes[id] = {
+      login,
+      ...row, // repare que row é do tipo any, por isso o TypeScript não reclama
     };
+    return id;
   } finally {
     await conexao.end();
   }
@@ -282,7 +295,7 @@ $ npm install sequelize
 
 Teríamos agora que instalar um driver específico do banco de dados, mas já fizemos isso na seção anterior. 
 
-Crie um arquivo `orm.js` que será responsável por expor uma instância do Sequelize configurada com os dados de conexão do banco de dados, da mesma forma que fizemos com o `db.js`:
+Crie um arquivo `shared/orm.ts` que será responsável por expor uma instância do Sequelize configurada com os dados de conexão do banco de dados, da mesma forma que fizemos com o `db.js`:
 
 ```js
 import { Sequelize } from 'sequelize';
@@ -296,31 +309,40 @@ const sequelize = new Sequelize('postgres://postgres:postgres@localhost:5432/pos
 export default sequelize;
 ```
 
-Agora adapte o arquivo `usuarios/model.js` criando a classe `Usuario`, informando os metadados necessários para o Sequelize e usando essa classe para efetuar a consulta:
+Agora adapte o arquivo `usuarios/model.ts` criando a classe `UsuarioORM`, informando os metadados necessários para o Sequelize e usando essa classe para efetuar a consulta:
 
-```js
-import sequelizeLib from 'sequelize';
-import sequelize from '../orm.js';
-//...
-const { DataTypes, Model } = sequelizeLib;
-class Usuario extends Model {}
-Usuario.init({
-  nome: DataTypes.TEXT,
-  login: DataTypes.TEXT
-}, { sequelize, modelName: 'usuarios' });
-//...
-export async function recuperarDadosDoUsuario (login) {
-  if (login === undefined) {
-    throw new UsuarioNaoAutenticado();
-  }
+```ts
+import sequelizeLib, { Model } from 'sequelize';
 
-  const usuario = await Usuario.findOne({ where: { login } });
-  if (usuario === null) {
-    throw new Error('Usuário não encontrado.');
+import sequelize from '../shared/orm';
+//...
+class UsuarioORM extends Model {
+  public id!: number;
+  public nome!: string;
+  public login!: string;
+  public senha!: string;
+  public admin!: boolean;
+}
+UsuarioORM.init({
+  nome: sequelizeLib.DataTypes.STRING,
+  login: sequelizeLib.DataTypes.STRING,
+  senha: sequelizeLib.DataTypes.STRING,
+  admin: sequelizeLib.DataTypes.BOOLEAN,
+}, {
+  sequelize,
+  tableName: 'usuarios',
+});
+//...
+export async function autenticar (login: Login, senha: Senha): Promise<IdAutenticacao> {
+  const usuario = await UsuarioORM.findOne({ where: { login } });
+  if (usuario === null || usuario.senha !== senha) {
+    throw new DadosOuEstadoInvalido('Login ou senha inválidos', {
+      codigo: 'CREDENCIAIS_INVALIDAS'
+    });
   }
-  return {
-    nome: usuario.nome
-  };
+  const id = gerarId();
+  autenticacoes[id] = usuario;
+  return id;
 }
 ```
 
@@ -340,9 +362,9 @@ $ npm install knex
 
 Note que também teríamos que instalar o driver `pg`, mas já fizemos isso.
 
-Crie agora um arquivo chamado `querybuilder.js` que ficará responsável pela configuração reutilizável:
+Crie agora um arquivo chamado `shared/querybuilder.ts` que ficará responsável pela configuração reutilizável:
 
-```js
+```ts
 import knexLib from 'knex';
 
 const knex = knexLib({
@@ -354,45 +376,48 @@ const knex = knexLib({
 export default knex;
 ```
 
-E adapte novamente o arquivo `usuarios/model.js`:
+E adapte novamente o arquivo `usuarios/model.ts`:
 
 ```js
-import knex from '../querybuilder.js';
+import knex from '../shared/querybuilder';
 //...
-const res = await knex('usuarios')
-  .select('nome')
-  .where('login', login);
-if (res.length === 0) {
-  throw new Error('Usuário não encontrado.');
-}
-return res[0];
-```
-
-Proposta de exercício: adapte o método `recuperarLoginDoUsuarioAutenticado` de modo que ele passe a consultar a informação do banco de dados. Passos necessários: 1) criar uma tabela chamada `autenticacoes` com os campos `id` (do tipo `uuid`) e `id_usuario` (do tipo `int`, com uma chave estrangeira para a tabela de usuários); 2) inserir alguns registros para testes; 3) adaptar o método no model.
-
-```sql
-create table autenticacoes (
-  id uuid not null,
-  id_usuario int not null,
-
-  constraint pk_autenticacoes primary key (id),
-  constraint fk_autenticacoes_usuario foreign key (id_usuario) references usuarios (id)
-);
-insert into autenticacoes (id, id_usuario) values ('a0b5902c-4f2d-429c-af40-38f00cddd3a6', 1);
-```
-
-```js
-export async function recuperarLoginDoUsuarioAutenticado (autenticacao) {
-  const res = await knex('usuarios')
-    .join('autenticacoes', 'autenticacoes.id_usuario', 'usuarios.id')
-    .where('autenticacoes.id', autenticacao)
-    .select('usuarios.login');
-  if (res.length === 0) {
-    throw new AutenticacaoInvalida();
+export async function autenticar (login: Login, senha: Senha): Promise<IdAutenticacao> {
+  const usuario = await knex('usuarios')
+    .select('login', 'senha', 'nome', 'admin')
+    .where({ login })
+    .first();
+  if (usuario === null || usuario.senha !== senha) {
+    throw new DadosOuEstadoInvalido('Login ou senha inválidos', {
+      codigo: 'CREDENCIAIS_INVALIDAS'
+    });
   }
-  return res[0]['login'];
+  const id = gerarId();
+  autenticacoes[id] = usuario;
+  return id;
 }
 ```
+
+Tente o exemplo passando um login inexistente. Deu um erro 500, o que aconteceu? O TypeScript está considerando o tipo de `usuario` como any, e um registro não encontrado é retornado como `undefined` ao invés de `null` pelo Knex. Mude de === null para === undefined e verá que o problema se resolve. Mas como melhorar a tipagem desse código para que problemas similares não ocorram mais?
+
+Uma maneira é ser explícito e dizer para o Knex qual o tipo esperado de retorno para a operação:
+
+```ts
+await knex<Usuario>('usuarios')
+```
+
+A outra maneira é enriquecer a interface de definição de tabelas do Knex:
+
+```ts
+declare module 'knex/types/tables' {
+  interface Tables {
+    usuarios: Usuario;
+  }
+}
+```
+
+O Knex olha nessa interface para buscar o tipo de um retorno baseado no nome da tabela que foi passado.
+
+[Exercício 01_recuperar_usuario_autenticado](exercicios/01_recuperar_usuario_autenticado/README.md)
 
 ## Adequação da função de autenticação
 
