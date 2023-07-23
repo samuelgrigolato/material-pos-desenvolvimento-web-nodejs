@@ -1,8 +1,8 @@
 import { v4 as uuidv4 } from 'uuid';
 import bcrypt from 'bcrypt';
+import { Knex } from 'knex';
 
 import { AutenticacaoInvalida, DadosOuEstadoInvalido } from '../shared/erros';
-import knex from '../shared/querybuilder';
 
 type UUIDString = string;
 type IdAutenticacao = UUIDString;
@@ -29,8 +29,8 @@ declare module 'knex/types/tables' {
   }
 }
 
-export async function autenticar (login: Login, senha: Senha): Promise<IdAutenticacao> {
-  const usuario = await knex('usuarios')
+export async function autenticar (login: Login, senha: Senha, uow: Knex): Promise<IdAutenticacao> {
+  const usuario = await uow('usuarios')
     .select('id', 'login', 'senha', 'nome', 'admin')
     .where({ login })
     .first();
@@ -40,7 +40,7 @@ export async function autenticar (login: Login, senha: Senha): Promise<IdAutenti
     });
   }
   const id = gerarId();
-  await knex('autenticacoes')
+  await uow('autenticacoes')
     .insert({ id_usuario: usuario.id, id });
   return id;
 }
@@ -50,8 +50,8 @@ async function senhaInvalida(senha: string, hash: string): Promise<boolean> {
   return !hashCompativel;
 }
 
-export async function recuperarUsuarioAutenticado (token: IdAutenticacao): Promise<Usuario> {
-  const usuario = await knex('autenticacoes')
+export async function recuperarUsuarioAutenticado (token: IdAutenticacao, uow: Knex): Promise<Usuario> {
+  const usuario = await uow('autenticacoes')
     .join('usuarios', 'usuarios.id', 'autenticacoes.id_usuario')
     .select<Usuario>('usuarios.id', 'login', 'senha', 'nome', 'admin')
     .where('autenticacoes.id', token)
@@ -62,8 +62,8 @@ export async function recuperarUsuarioAutenticado (token: IdAutenticacao): Promi
   return usuario;
 }
 
-export async function alterarNome (usuario: Usuario, novoNome: string): Promise<void> {
-  await knex('usuarios')
+export async function alterarNome (usuario: Usuario, novoNome: string, uow: Knex): Promise<void> {
+  await uow('usuarios')
     .update({ nome: novoNome })
     .where({ id: usuario.id });
 }

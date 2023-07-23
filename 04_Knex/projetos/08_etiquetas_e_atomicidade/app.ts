@@ -1,5 +1,6 @@
 import fastify from 'fastify';
 
+import uowPlugin from './core/uow';
 import { recuperarUsuarioAutenticado } from './usuarios/model';
 import usuariosRouter from './usuarios/router';
 import tarefasRouter from './tarefas/router';
@@ -23,12 +24,13 @@ app.setErrorHandler((err, req, resp) => {
 });
 
 app.decorateRequest('usuario', null);
+app.register(uowPlugin);
 
 app.addHook('preHandler', async (req, resp) => {
   const { authorization } = req.headers as { authorization?: string };
   if (authorization !== undefined) {
     const token = authorization.replace('Bearer ', '');
-    const usuario = await recuperarUsuarioAutenticado(token);
+    const usuario = await recuperarUsuarioAutenticado(token, req.uow);
     req.usuario = usuario;
   }
   // não queremos disparar um erro se o usuário não estiver autenticado neste ponto,

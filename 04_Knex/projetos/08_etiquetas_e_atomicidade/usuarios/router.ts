@@ -27,7 +27,7 @@ export default async (app: FastifyInstance) => {
 
   app.post('/login', { schema: loginSchema }, async (req, resp) => {
     const { login, senha } = req.body as { login: string, senha: string };
-    const id = await autenticar(login, senha);
+    const id = await autenticar(login, senha, req.uow);
     return { token: id };
   });
 
@@ -59,7 +59,7 @@ export default async (app: FastifyInstance) => {
 
   app.put('/autenticado/nome', { schema: putNomeSchema }, async (req, resp) => {
     const { nome } = req.body as { nome: string };
-    await alterarNome(req.usuario, nome);
+    await alterarNome(req.usuario, nome, req.uow);
     resp.status(204);
   });
 

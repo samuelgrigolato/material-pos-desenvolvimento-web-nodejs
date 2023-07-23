@@ -1040,71 +1040,86 @@ Sistemas de gerenciamento de bancos de dados relacionais trazem um mecanismo que
 
 O Knex oferece transações através dos métodos `knex.transaction(async trx => {})` e `knex.transacting(trx)`. O primeiro cria uma transação e, ao final da promise, faz o commit ou rollback dependendo do fato de ter ocorrido algum erro ou não. O método `transacting` permite que uma operação entre em uma `trx` existente. A instância `trx` se comporta como um objeto `knex`, ou seja é possível chamar `select`, `insert` etc direto nela.
 
-Com base nisso qual seria a melhor maneira de desenhar o suporte a transações no nosso model? Lembre-se que queremos que garantir que todas as operações chamadas para atender determinada requisição participem da mesma transação. Existe um padrão de projeto muito bom nessas horas que é o `Unit of Work`. A ideia é criar um objeto que acompanha toda a chamada ao redor da camada de modelo, e esse objeto é usado sempre que uma operação de banco de dados precisa descobrir qual transação participar. Comece criando o seguinte método no arquivo `querybuilder.js`:
+Com base nisso qual seria a melhor maneira de desenhar o suporte a transações no nosso model? Lembre-se que queremos que garantir que todas as operações chamadas para atender determinada requisição participem da mesma transação. Existe um padrão de projeto muito bom nessas horas que é o `Unit of Work`. A ideia é criar um objeto que acompanha toda a chamada ao redor da camada de modelo, e esse objeto é usado sempre que uma operação de banco de dados precisa descobrir qual transação participar. Comece instalando a biblioteca `fastify-plugin`:
 
-```js
-export function comUnidadeDeTrabalho () {
-  return function (req, res, next) {
-    knex.transaction(function (trx) {
-      res.on('finish', function () {
-        if (res.statusCode < 200 || res.statusCode > 299) {
-          trx.rollback();
-        } else {
-          trx.commit();
-        }
-      });
+```sh
+$ npm i fastify-plugin
+```
+
+Agora crie um arquivo chamado `core/uow.ts`:
+
+```ts
+import { FastifyInstance } from 'fastify';
+import fastifyPlugin from 'fastify-plugin';
+
+import knex from '../shared/querybuilder';
+
+
+export default fastifyPlugin(async (app: FastifyInstance) => {
+  app.decorateRequest('uow', null);
+
+  app.addHook('preHandler', (req, _, done) => {
+    knex.transaction(trx => {
       req.uow = trx;
-      next();
+      done();
     });
+  });
+
+  app.addHook('onSend', async (req) => {
+    if (!req.uow.isCompleted()) {
+      console.log('commit');
+      await req.uow.commit();
+    }
+  });
+
+  app.addHook('onError', async (req) => {
+    console.log('rollback');
+    await req.uow.rollback();
+  });
+
+});
+```
+
+A ideia aqui é enriquecer as requisições que chegam no Fastify com uma transação Knex. Ao final da requisição, se tudo deu certo, efetuamos um commit, caso contrário, um rollback é emitido.
+
+A partir desse ponto *todas* as rotas e *todos* os métodos da camada de modelo precisam ser ajustados da seguinte forma:
+
+1. Passar `req.uow` como último parâmetro em todas as chamadas para a camada de modelo.
+2. Receber `uow: Knex` na definição dos métodos da camada de modelo e usá-lo no lugar do `knex`.
+
+Exemplo para o vínculo de etiqueta:
+
+```ts
+app.post('/:id/etiquetas/:etiqueta', async (req, resp) => {
+  const { id, etiqueta } = req.params as { id: string, etiqueta: string };
+  const idTarefa = Number(id);
+  await vincularEtiquetaNaTarefa(req.usuario, idTarefa, etiqueta, req.uow);
+  resp.status(204);
+});
+```
+
+```ts
+export async function vincularEtiquetaNaTarefa(
+  usuario: Usuario | null, id: IdTarefa,
+  etiqueta: string, uow: Knex
+): Promise<void> {
+  if (usuario === null) {
+    throw new UsuarioNaoAutenticado();
   }
-}
-```
-
-Use esse middleware customizado no endpoint de cadastro de etiqueta, e passe a unidade de trabalho pra dentro da camada de modelo:
-
-```js
-router.post('/:id/etiquetas', schemaValidator(vincularEtiquetaSchema), comUnidadeDeTrabalho(), asyncWrapper(async (req, res) => {
-  await vincularEtiqueta(req.params.id, req.body.etiqueta, req.loginDoUsuario, req.uow);
-  res.sendStatus(204);
-}));
-```
-
-E por fim use nos dois arquivos de modelo impactados:
-
-```js
-export async function vincularEtiqueta (idTarefa, etiqueta, loginDoUsuario, uow) {
-  await assegurarExistenciaEAcesso(idTarefa, loginDoUsuario);
+  await asseguraExistenciaDaTarefaEAcessoDeEdicao(usuario, id, uow);
   const idEtiqueta = await cadastrarEtiquetaSeNecessario(etiqueta, uow);
-  await knex('tarefa_etiqueta')
-    .transacting(uow)
+  await uow('tarefa_etiqueta')
     .insert({
-      id_tarefa: idTarefa,
-      id_etiqueta: idEtiqueta
+      id_tarefa: id,
+      id_etiqueta: idEtiqueta,
     })
-    .onConflict().ignore();
+    .onConflict(['id_tarefa', 'id_etiqueta']).ignore();
 }
 ```
 
-```js
-export async function cadastrarEtiquetaSeNecessario (descricao, uow) {
-  let res = await knex('etiquetas')
-    .transacting(uow)
-    .select('id')
-    .where('descricao', descricao);
-  if (res.length === 0) {
-    res = await knex('etiquetas')
-      .transacting(uow)
-      .insert({
-        descricao,
-        cor: gerarCorAleatoria()
-      })
-      .returning('id');
-    return res[0];
-  } else {
-    return res[0].id;
-  }
-}
-```
+(note que o código acima assume que o mesmo já foi feito para os métodos `asseguraExistenciaDaTarefaEAcessoDeEdicao` e `cadastrarEtiquetaSeNecessario`).
+
+Dica: remova todos os imports do tipo `import knex from '../shared/querybuilder'` dos arquivos `model.ts`. Eles não devem mais ser utilizados já que todas as chamadas devem ser feitas usando a instância `uow`, e não mais diretamente usando a instância `knex` exposta no módulo `querybuilder.ts`.
 
 Existem outras abordagens além da unidade de trabalho para compartilhamento de transação na camada de modelo:
 

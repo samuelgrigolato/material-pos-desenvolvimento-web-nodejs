@@ -31,21 +31,21 @@ export default async (app: FastifyInstance) => {
 
   app.post('/', { schema: postSchema }, async (req, resp) => {
     const dados = req.body as DadosTarefa;
-    const id = await cadastrarTarefa(req.usuario, dados);
+    const id = await cadastrarTarefa(req.usuario, dados, req.uow);
     resp.status(201);
     return { id };
   });
   
   app.get('/', async (req, resp) => {
     const { termo } = req.query as { termo?: string };
-    const tarefas = await consultarTarefas(req.usuario, termo);
+    const tarefas = await consultarTarefas(req.usuario, termo, req.uow);
     return tarefas;
   });
   
   app.get('/:id', async (req, resp) => {
     const { id } = req.params as { id: string };
     const idTarefa = Number(id);
-    const tarefa = await consultarTarefaPeloId(req.usuario, idTarefa);
+    const tarefa = await consultarTarefaPeloId(req.usuario, idTarefa, req.uow);
     return {
       descricao: tarefa.descricao,
       data_conclusao: tarefa.data_conclusao,
@@ -57,35 +57,35 @@ export default async (app: FastifyInstance) => {
     const { id } = req.params as { id: string };
     const idTarefa = Number(id);
     const alteracoes = req.body as Partial<DadosTarefa>;
-    await alterarTarefa(req.usuario, idTarefa, alteracoes);
+    await alterarTarefa(req.usuario, idTarefa, alteracoes, req.uow);
     resp.status(204);
   });
 
   app.post('/:id/concluir', async (req, resp) => {
     const { id } = req.params as { id: string };
     const idTarefa = Number(id);
-    await concluirTarefa(req.usuario, idTarefa);
+    await concluirTarefa(req.usuario, idTarefa, req.uow);
     resp.status(204);
   });
 
   app.post('/:id/reabrir', async (req, resp) => {
     const { id } = req.params as { id: string };
     const idTarefa = Number(id);
-    await reabrirTarefa(req.usuario, idTarefa);
+    await reabrirTarefa(req.usuario, idTarefa, req.uow);
     resp.status(204);
   });
 
   app.delete('/:id', async (req, resp) => {
     const { id } = req.params as { id: string };
     const idTarefa = Number(id);
-    await excluirTarefa(req.usuario, idTarefa);
+    await excluirTarefa(req.usuario, idTarefa, req.uow);
     resp.status(204);
   });
 
   app.post('/:id/etiquetas/:etiqueta', async (req, resp) => {
     const { id, etiqueta } = req.params as { id: string, etiqueta: string };
     const idTarefa = Number(id);
-    await vincularEtiquetaNaTarefa(req.usuario, idTarefa, etiqueta);
+    await vincularEtiquetaNaTarefa(req.usuario, idTarefa, etiqueta, req.uow);
     resp.status(204);
   });
 
