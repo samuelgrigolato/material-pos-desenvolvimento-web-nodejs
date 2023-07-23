@@ -3,7 +3,7 @@ import { FastifyInstance, FastifySchema } from 'fastify';
 import {
   consultarTarefaPeloId, cadastrarTarefa, consultarTarefas,
   DadosTarefa, concluirTarefa, reabrirTarefa, alterarTarefa,
-  excluirTarefa, vincularEtiquetaNaTarefa
+  excluirTarefa, vincularEtiquetaNaTarefa, desvincularEtiquetaDaTarefa
 } from './model';
 
 export default async (app: FastifyInstance) => {
@@ -86,6 +86,13 @@ export default async (app: FastifyInstance) => {
     const { id, etiqueta } = req.params as { id: string, etiqueta: string };
     const idTarefa = Number(id);
     await vincularEtiquetaNaTarefa(req.usuario, idTarefa, etiqueta, req.uow);
+    resp.status(204);
+  });
+
+  app.delete('/:id/etiquetas/:etiqueta', async (req, resp) => {
+    const { id, etiqueta } = req.params as { id: string, etiqueta: string };
+    const idTarefa = Number(id);
+    await desvincularEtiquetaDaTarefa(req.usuario, idTarefa, etiqueta, req.uow);
     resp.status(204);
   });
 

@@ -1,5 +1,8 @@
 import { Knex } from 'knex';
 
+import { DadosOuEstadoInvalido } from '../shared/erros';
+
+
 type FatorRGB = number; // 0-255
 type Cor = [FatorRGB, FatorRGB, FatorRGB];
 
@@ -12,6 +15,39 @@ type Etiqueta = {
 declare module 'knex/types/tables' {
   interface Tables {
     etiquetas: Etiqueta;
+  }
+}
+
+export async function buscarIdDaEtiquetaPelaDescricao(
+  descricao: string, uow: Knex
+): Promise<number> {
+  const res = await uow('etiquetas')
+    .select('id')
+    .where('descricao', descricao)
+    .first();
+  if (res === undefined) {
+    throw new DadosOuEstadoInvalido('Etiqueta não encontrada', {
+      codigo: 'ETIQUETA_NAO_ENCONTRADA'
+    });
+  }
+  return res.id;
+}
+
+export async function removerEtiquetaSeObsoleta(
+  id: number, uow: Knex
+): Promise<void> {
+  // pequena dependência circular aqui
+  // visto que o conceito de etiquetas
+  // está dependendo do conceito de tarefas
+  const res = await uow('tarefa_etiqueta')
+    .count('id_tarefa')
+    .where('id_etiqueta', id)
+    .first();
+  // infelizmente esse count é uma string e não um number
+  if (res === undefined || res.count === '0') {
+    await uow('etiquetas')
+      .where('id', id)
+      .delete();
   }
 }
 

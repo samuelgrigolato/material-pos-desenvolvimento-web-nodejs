@@ -2,7 +2,10 @@ import { Knex } from 'knex';
 
 import { AcessoNegado, DadosOuEstadoInvalido, UsuarioNaoAutenticado } from '../shared/erros';
 import { Usuario } from '../usuarios/model';
-import { cadastrarEtiquetaSeNecessario } from '../etiquetas/model';
+import {
+  cadastrarEtiquetaSeNecessario, buscarIdDaEtiquetaPelaDescricao,
+  removerEtiquetaSeObsoleta
+} from '../etiquetas/model';
 
 export interface DadosTarefa {
   descricao: string;
@@ -170,4 +173,22 @@ export async function vincularEtiquetaNaTarefa(
       id_etiqueta: idEtiqueta,
     })
     .onConflict(['id_tarefa', 'id_etiqueta']).ignore();
+}
+
+export async function desvincularEtiquetaDaTarefa(
+  usuario: Usuario | null, id: IdTarefa,
+  etiqueta: string, uow: Knex
+): Promise<void> {
+  if (usuario === null) {
+    throw new UsuarioNaoAutenticado();
+  }
+  await asseguraExistenciaDaTarefaEAcessoDeEdicao(usuario, id, uow);
+  const idEtiqueta = await buscarIdDaEtiquetaPelaDescricao(etiqueta, uow);
+  await uow('tarefa_etiqueta')
+    .delete()
+    .where({
+      id_tarefa: id,
+      id_etiqueta: idEtiqueta,
+    });
+  await removerEtiquetaSeObsoleta(idEtiqueta, uow);
 }

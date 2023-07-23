@@ -1128,54 +1128,93 @@ Existem outras abordagens além da unidade de trabalho para compartilhamento de 
 
 Um enorme benefício da unidade de trabalho, como veremos adiante, é a facilidade com que ela permite a implementação de testes unitários e de integração.
 
-Proposta de exercício: implemente o endpoint `DELETE /tarefas/{id}/etiquetas/{etiqueta}`. Receba descrição e não o ID. Para o front end não queremos expor a chave primária da tabela de etiquetas. Se for o único uso da etiqueta, remova-a. Coloque tudo isso em uma unidade de trabalho.
+Vamos implementar agora o endpoint `DELETE /tarefas/:id/etiquetas/:etiqueta`. Note que, se for a última utilização da etiqueta, queremos excluí-la! Comece adicionando duas funções no arquivo `etiquetas/model.ts`: `removerEtiquetaSeObsoleta` e `buscarIdDaEtiquetaPelaDescricao`:
 
-```js
-router.delete('/:id/etiquetas/:descricao', comUnidadeDeTrabalho(), asyncWrapper(async (req, res) => {
-  await desvincularEtiqueta(req.params.id, req.params.descricao, req.loginDoUsuario, req.uow);
-  res.sendStatus(204);
-}));
+```ts
+import { DadosOuEstadoInvalido } from '../shared/erros';
+
+...
+
+export async function buscarIdDaEtiquetaPelaDescricao(
+  descricao: string, uow: Knex
+): Promise<number> {
+  const res = await uow('etiquetas')
+    .select('id')
+    .where('descricao', descricao)
+    .first();
+  if (res === undefined) {
+    throw new DadosOuEstadoInvalido('Etiqueta não encontrada', {
+      codigo: 'ETIQUETA_NAO_ENCONTRADA'
+    });
+  }
+  return res.id;
+}
+
+export async function removerEtiquetaSeObsoleta(
+  id: number, uow: Knex
+): Promise<void> {
+  // pequena dependência circular aqui
+  // visto que o conceito de etiquetas
+  // está dependendo do conceito de tarefas
+  const res = await uow('tarefa_etiqueta')
+    .count('id_tarefa')
+    .where('id_etiqueta', id)
+    .first();
+  // infelizmente esse count é uma string e não um number
+  if (res === undefined || res.count === '0') {
+    await uow('etiquetas')
+      .where('id', id)
+      .delete();
+  }
+}
 ```
 
-```js
-export async function desvincularEtiqueta (idTarefa, etiqueta, loginDoUsuario, uow) {
-  await assegurarExistenciaEAcesso(idTarefa, loginDoUsuario);
-  const idEtiqueta = await buscarIdEtiquetaPelaDescricao (etiqueta, uow);
-  await knex('tarefa_etiqueta')
-    .transacting(uow)
+Adicione agora a função `` no arquivo `tarefas/model.ts`:
+
+```ts
+import {
+  cadastrarEtiquetaSeNecessario, buscarIdDaEtiquetaPelaDescricao,
+  removerEtiquetaSeObsoleta
+} from '../etiquetas/model';
+
+...
+
+export async function desvincularEtiquetaDaTarefa(
+  usuario: Usuario | null, id: IdTarefa,
+  etiqueta: string, uow: Knex
+): Promise<void> {
+  if (usuario === null) {
+    throw new UsuarioNaoAutenticado();
+  }
+  await asseguraExistenciaDaTarefaEAcessoDeEdicao(usuario, id, uow);
+  const idEtiqueta = await buscarIdDaEtiquetaPelaDescricao(etiqueta, uow);
+  await uow('tarefa_etiqueta')
     .delete()
     .where({
-      id_tarefa: idTarefa,
-      id_etiqueta: idEtiqueta
+      id_tarefa: id,
+      id_etiqueta: idEtiqueta,
     });
   await removerEtiquetaSeObsoleta(idEtiqueta, uow);
 }
 ```
 
-```js
-export async function removerEtiquetaSeObsoleta (idEtiqueta, uow) {
-  const res = await knex('tarefa_etiqueta')
-    .transacting(uow)
-    .count('id_tarefa')
-    .where('id_etiqueta', idEtiqueta);
-  if (parseInt(res[0].count) === 0) {
-    await knex('etiquetas')
-      .transacting(uow)
-      .delete()
-      .where('id', idEtiqueta);
-  }
-}
+E por fim exponha o endpoint no arquivo `tarefas/router.ts`:
 
-export async function buscarIdEtiquetaPelaDescricao (descricao, uow) {
-  const res = await knex('etiquetas')
-    .transacting(uow)
-    .select('id')
-    .where('descricao', descricao);
-  if (res.length === 0) {
-    throw new DadosOuEstadoInvalido('EtiquetaNaoExiste', 'Etiqueta não existe.');
-  }
-  return res[0].id;
-}
+```ts
+import {
+  consultarTarefaPeloId, cadastrarTarefa, consultarTarefas,
+  DadosTarefa, concluirTarefa, reabrirTarefa, alterarTarefa,
+  excluirTarefa, vincularEtiquetaNaTarefa, desvincularEtiquetaDaTarefa
+} from './model';
+
+...
+
+app.delete('/:id/etiquetas/:etiqueta', async (req, resp) => {
+  const { id, etiqueta } = req.params as { id: string, etiqueta: string };
+  const idTarefa = Number(id);
+  await desvincularEtiquetaDaTarefa(req.usuario, idTarefa, etiqueta, req.uow);
+  resp.status(204);
+});
 ```
 
 ## Alguns endpoints de suporte e adaptação do GET /tarefas
