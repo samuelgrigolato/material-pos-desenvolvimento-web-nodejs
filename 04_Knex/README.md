@@ -1080,6 +1080,17 @@ export default fastifyPlugin(async (app: FastifyInstance) => {
 });
 ```
 
+Instale-o no arquivo `app.ts`:
+
+```ts
+import uowPlugin from './core/uow';
+
+...
+
+app.decorateRequest('usuario', null);
+app.register(uowPlugin);
+```
+
 A ideia aqui é enriquecer as requisições que chegam no Fastify com uma transação Knex. Ao final da requisição, se tudo deu certo, efetuamos um commit, caso contrário, um rollback é emitido.
 
 A partir desse ponto *todas* as rotas e *todos* os métodos da camada de modelo precisam ser ajustados da seguinte forma:
@@ -1169,7 +1180,7 @@ export async function removerEtiquetaSeObsoleta(
 }
 ```
 
-Adicione agora a função `` no arquivo `tarefas/model.ts`:
+Adicione agora a função `desvincularEtiquetaDaTarefa` no arquivo `tarefas/model.ts`:
 
 ```ts
 import {
