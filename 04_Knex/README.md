@@ -844,57 +844,28 @@ export async function alterarTarefa(usuario: Usuario | null, id: IdTarefa, alter
 }
 ```
 
-Proposta de exercício: adeque os endpoints `POST /tarefas/{id}/concluir` e `POST /tarefas/{id}/reabrir`.
+O próximo passo será a adaptação dos métodos `concluirTarefa` e `reabrirTarefa`:
 
-```js
-export async function concluirTarefa (id, loginDoUsuario) {
-  if (loginDoUsuario === undefined) {
+```ts
+export async function concluirTarefa(usuario: Usuario | null, id: IdTarefa): Promise<void> {
+  if (usuario === null) {
     throw new UsuarioNaoAutenticado();
   }
-  const res = await knex('tarefas')
-    .join('usuarios', 'usuarios.id', 'tarefas.id_usuario')
-    .where('tarefas.id', id)
-    .select('usuarios.login');
-  if (res.length === 0) {
-    throw new DadosOuEstadoInvalido('TarefaNaoEncontrada', 'Tarefa não encontrada.');
-  }
-  const tarefa = res[0];
-  if (tarefa.login !== loginDoUsuario) {
-    throw new AcessoNegado();
-  }
+  await asseguraExistenciaDaTarefaEAcessoDeEdicao(usuario, id);
   await knex('tarefas')
-    .update({ data_conclusao: new Date() })
+    .update('data_conclusao', new Date())
     .where('id', id);
 }
-```
 
-```js
-export async function reabrirTarefa (id, loginDoUsuario) {
-  if (loginDoUsuario === undefined) {
+export async function reabrirTarefa(usuario: Usuario | null, id: IdTarefa): Promise<void> {
+  if (usuario === null) {
     throw new UsuarioNaoAutenticado();
   }
-  const res = await knex('tarefas')
-    .join('usuarios', 'usuarios.id', 'tarefas.id_usuario')
-    .where('tarefas.id', id)
-    .select('usuarios.login');
-  if (res.length === 0) {
-    throw new DadosOuEstadoInvalido('TarefaNaoEncontrada', 'Tarefa não encontrada.');
-  }
-  const tarefa = res[0];
-  if (tarefa.login !== loginDoUsuario) {
-    throw new AcessoNegado();
-  }
+  await asseguraExistenciaDaTarefaEAcessoDeEdicao(usuario, id);
   await knex('tarefas')
-    .update({ data_conclusao: null })
+    .update('data_conclusao', null)
     .where('id', id);
 }
-```
-
-```js
-router.post('/:id/reabrir', asyncWrapper(async (req, res) => {
-  await reabrirTarefa(req.params.id, req.loginDoUsuario);
-  res.sendStatus(204);
-}));
 ```
 
 Note que aqui acabaram as adequações! Daqui pra frente serão apenas novos endpoints.
