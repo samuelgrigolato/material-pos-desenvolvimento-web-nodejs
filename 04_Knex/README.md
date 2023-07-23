@@ -582,7 +582,54 @@ E execute-a com o seguinte comando:
 $ npx knex migrate:latest
 ```
 
-É possível usar o comando `down` para reverter o último lote executado:
+Um ponto de atenção aqui: execute `npm run build` e tente executar `npx knex migrate:latest` novamente. O Knex vai reclamar que não consegue criar novamente a tabela de usuários. Isso ocorreu pois ele está tentando executar a versão `.js` das migrações! Você definitivamente não quer isso. Uma maneira de resolver é excluir o arquivo `knexfile.js` gerado pela build, e ignorar tanto o `knexfile.ts` quanto a pasta `migrations` da build coordenada pelo `tsconfig.json`:
+
+```sh
+$ rm knexfile.js
+$ rm migrations/*.js
+```
+
+```json
+...
+  },
+  "exclude": ["knexfile.ts", "migrations"]
+}
+```
+
+Essa é uma boa oportunidade para configurar um diretório diferente para os arquivos JavaScript. Também no arquivo `tsconfig.json`:
+
+```json
+    // "outFile": "./",                                  /* Specify a file that bundles all outputs into one JavaScript file. If 'declaration' is true, also designates a file that bundles all .d.ts output. */
+    "outDir": "./build",                                   /* Specify an output folder for all emitted files. */
+    // "removeComments": true,                           /* Disable emitting comments. */
+
+```
+
+Adicione a pasta build no `.gitignore`, no lugar dos arquivos `*.js`:
+
+```
+build
+```
+
+Também é necessário ajustar o script de execução no `package.json`, já que agora os arquivos JavaScript estarão na pasta `build`:
+
+```json
+  "scripts": {
+    "build": "rm -rf build && tsc -p tsconfig.json",
+    "start": "cd build && node app.js"
+  },
+```
+
+Limpe eventuais arquivos existentes e construa o projeto novamente:
+
+```sh
+$ rm -rf node_modules
+$ rm **/*.js
+$ npm install
+$ npm run build
+```
+
+Voltando agora às migrações. É possível usar o comando `down` para reverter o último lote executado:
 
 ```sh
 $ npx knex migrate:down
