@@ -874,75 +874,36 @@ Note que aqui acabaram as adequações! Daqui pra frente serão apenas novos end
 
 Um endpoint relativamente simples que ficou de fora até agora é a exclusão de uma tarefa. Existem duas abordagens para exclusões: física e lógica. A exclusão física remove mesmo o registro do banco de dados, enquanto a exclusão lógica apenas muda um campo no registro (boolean ou uma data) indicando que ele foi excluído. O benefício da exclusão física é a simplicidade, enquanto o benefício da exclusão lógica é manter um registro melhor dos dados em troca de ter que tomar muito cuidado para limitar todas as consultas que usam essa tabela a desconsiderarem os registros excluídos.
 
-Comece implementando no arquivo `tarefas/router.js`:
+Comece implementando no arquivo `tarefas/router.ts`:
 
-```js
-router.delete('/:id', asyncWrapper(async (req, res) => {
-  await deletarTarefa(req.params.id, req.loginDoUsuario);
-  res.sendStatus(204);
-}));
+```ts
+import {
+  consultarTarefaPeloId, cadastrarTarefa, consultarTarefas,
+  DadosTarefa, concluirTarefa, reabrirTarefa, alterarTarefa,
+  excluirTarefa
+} from './model';
+
+...
+
+app.delete('/:id', async (req, resp) => {
+  const { id } = req.params as { id: string };
+  const idTarefa = Number(id);
+  await excluirTarefa(req.usuario, idTarefa);
+  resp.status(204);
+});
 ```
 
-E depois adicione o método no `tarefas/model.js`:
+E depois adicione o método no `tarefas/model.ts`:
 
-```js
-export async function deletarTarefa (id, loginDoUsuario) {
-  if (loginDoUsuario === undefined) {
+```ts
+export async function excluirTarefa(usuario: Usuario | null, id: IdTarefa): Promise<void> {
+  if (usuario === null) {
     throw new UsuarioNaoAutenticado();
   }
-  const res = await knex('tarefas')
-    .join('usuarios', 'usuarios.id', 'tarefas.id_usuario')
-    .where('tarefas.id', id)
-    .select('usuarios.login');
-  if (res.length === 0) {
-    throw new DadosOuEstadoInvalido('TarefaNaoEncontrada', 'Tarefa não encontrada.');
-  }
-  const tarefa = res[0];
-  if (tarefa.login !== loginDoUsuario) {
-    throw new AcessoNegado();
-  }
+  await asseguraExistenciaDaTarefaEAcessoDeEdicao(usuario, id);
   await knex('tarefas')
     .delete()
     .where('id', id);
-}
-```
-
-Note que temos algumas oportunidades de refatoração nesse model. O código que busca uma tarefa apenas para validar o acesso está sendo utilizado em muitos lugares e vale ser extraído:
-
-```js
-export async function alterarTarefa (id, patch, loginDoUsuario) {
-  await assegurarExistenciaEAcesso(id, loginDoUsuario);
-  const values = {};
-  if (patch.descricao) values.descricao = patch.descricao;
-  if (patch.id_categoria) values.id_categoria = patch.id_categoria;
-  if (Object.keys(values).length === 0) return;
-  await knex('tarefas')
-    .update(values)
-    .where('id', id);
-}
-
-export async function deletarTarefa (id, loginDoUsuario) {
-  await assegurarExistenciaEAcesso(id, loginDoUsuario);
-  await knex('tarefas')
-    .delete()
-    .where('id', id);
-}
-
-async function assegurarExistenciaEAcesso (idTarefa, loginDoUsuario) {
-  if (loginDoUsuario === undefined) {
-    throw new UsuarioNaoAutenticado();
-  }
-  const res = await knex('tarefas')
-    .join('usuarios', 'usuarios.id', 'tarefas.id_usuario')
-    .where('tarefas.id', idTarefa)
-    .select('usuarios.login');
-  if (res.length === 0) {
-    throw new DadosOuEstadoInvalido('TarefaNaoEncontrada', 'Tarefa não encontrada.');
-  }
-  const tarefa = res[0];
-  if (tarefa.login !== loginDoUsuario) {
-    throw new AcessoNegado();
-  }
 }
 ```
 

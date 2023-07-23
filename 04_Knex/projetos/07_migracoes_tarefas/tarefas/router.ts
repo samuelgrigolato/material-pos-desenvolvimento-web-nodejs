@@ -2,7 +2,8 @@ import { FastifyInstance, FastifySchema } from 'fastify';
 
 import {
   consultarTarefaPeloId, cadastrarTarefa, consultarTarefas,
-  DadosTarefa, concluirTarefa, reabrirTarefa, alterarTarefa
+  DadosTarefa, concluirTarefa, reabrirTarefa, alterarTarefa,
+  excluirTarefa
 } from './model';
 
 export default async (app: FastifyInstance) => {
@@ -71,6 +72,13 @@ export default async (app: FastifyInstance) => {
     const { id } = req.params as { id: string };
     const idTarefa = Number(id);
     await reabrirTarefa(req.usuario, idTarefa);
+    resp.status(204);
+  });
+
+  app.delete('/:id', async (req, resp) => {
+    const { id } = req.params as { id: string };
+    const idTarefa = Number(id);
+    await excluirTarefa(req.usuario, idTarefa);
     resp.status(204);
   });
 

@@ -124,3 +124,13 @@ export async function reabrirTarefa(usuario: Usuario | null, id: IdTarefa): Prom
     .update('data_conclusao', null)
     .where('id', id);
 }
+
+export async function excluirTarefa(usuario: Usuario | null, id: IdTarefa): Promise<void> {
+  if (usuario === null) {
+    throw new UsuarioNaoAutenticado();
+  }
+  await asseguraExistenciaDaTarefaEAcessoDeEdicao(usuario, id);
+  await knex('tarefas')
+    .delete()
+    .where('id', id);
+}
