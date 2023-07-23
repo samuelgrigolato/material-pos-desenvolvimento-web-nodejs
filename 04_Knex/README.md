@@ -914,81 +914,124 @@ Vamos implementar agora o vínculo de etiquetas com as tarefas. Note que o endpo
 Começaremos implementando uma versão ingênua e depois vamos evoluí-la, incorporando conceitos que resolvem o problema. O primeiro passo é criar a tabela de etiqueta e uma tabela que representa as etiquetas vinculadas com as tarefas:
 
 ```sh
-$ ./node_modules/.bin/knex --esm migrate:make criar_tabela_etiquetas_e_tarefa_etiqueta
+$ npx knex migrate:make cria_tabela_etiquetas_e_tarefa_etiqueta
 ```
 
-```js
-export async function up (knex) {
-  await knex.schema.createTable('etiquetas', function (table) {
+```ts
+export async function up(knex: Knex): Promise<void> {
+  await knex.schema.createTable('etiquetas', (table) => {
     table.increments();
-    table.text('descricao').notNullable();
-    table.text('cor').notNullable();
+    table.text('descricao').notNullable().unique();
+    table.specificType('cor', 'integer[3]').notNullable();
   });
-  await knex.schema.createTable('tarefa_etiqueta', function (table) {
-    table.integer('id_tarefa').references('tarefas.id');
-    table.integer('id_etiqueta').references('etiquetas.id');
+  await knex.schema.createTable('tarefa_etiqueta', (table) => {
+    table.integer('id_tarefa').notNullable().references('tarefas.id');
+    table.integer('id_etiqueta').notNullable().references('etiquetas.id');
     table.primary(['id_tarefa', 'id_etiqueta']);
   });
 }
 
-export async function down () {
+
+export async function down(knex: Knex): Promise<void> {
   throw new Error('não suportado');
 }
 ```
 
-Crie agora uma pasta chamada `etiquetas`, com um arquivo chamado `model.js` dentro dela com o seguinte conteúdo:
+Crie agora uma pasta chamada `etiquetas`, com um arquivo chamado `model.ts` dentro dela com o seguinte conteúdo:
 
-```js
-import knex from '../querybuilder.js';
+```ts
+import knex from '../shared/querybuilder';
 
-export async function cadastrarEtiquetaSeNecessario (descricao) {
-  let res = await knex('etiquetas')
-    .select('id')
-    .where('descricao', descricao);
-  if (res.length === 0) {
-    res = await knex('etiquetas')
-      .insert({
-        descricao,
-        cor: gerarCorAleatoria()
-      })
-      .returning('id');
-    return res[0];
-  } else {
-    return res[0].id;
+type FatorRGB = number; // 0-255
+type Cor = [FatorRGB, FatorRGB, FatorRGB];
+
+type Etiqueta = {
+  id: number;
+  descricao: string;
+  cor: Cor;
+}
+
+declare module 'knex/types/tables' {
+  interface Tables {
+    etiquetas: Etiqueta;
   }
 }
 
-function gerarCorAleatoria () {
+export async function cadastrarEtiquetaSeNecessario(etiqueta: string): Promise<number> {
+  const res = await knex('etiquetas')
+    .select('id')
+    .where('descricao', etiqueta)
+    .first();
+  let id: number;
+  if (res !== undefined) {
+    id = res.id;
+  } else {
+    const res = await knex('etiquetas')
+      .insert({
+        descricao: etiqueta,
+        cor: gerarCorAleatoria()
+      })
+      .returning<{ id: number }[]>('id');
+    id = res[0].id;
+  }
+  return id;
+}
+
+function gerarCorAleatoria(): Cor {
   const num = Math.round(0xffffff * Math.random());
   const r = num >> 16;
   const g = num >> 8 & 255;
   const b = num & 255;
-  return `rgb(${r}, ${g}, ${b})`;
+  return [r, g, b];
 }
 ```
 
 Adicione agora o seguinte método no modelo de tarefas:
 
-```js
-export async function vincularEtiqueta (idTarefa, etiqueta, loginDoUsuario) {
-  await assegurarExistenciaEAcesso(idTarefa, loginDoUsuario);
+```ts
+import { cadastrarEtiquetaSeNecessario } from '../etiquetas/model';
+
+...
+
+export async function vincularEtiquetaNaTarefa(usuario: Usuario | null, id: IdTarefa, etiqueta: string): Promise<void> {
+  if (usuario === null) {
+    throw new UsuarioNaoAutenticado();
+  }
+  await asseguraExistenciaDaTarefaEAcessoDeEdicao(usuario, id);
   const idEtiqueta = await cadastrarEtiquetaSeNecessario(etiqueta);
   await knex('tarefa_etiqueta')
     .insert({
-      id_tarefa: idTarefa,
-      id_etiqueta: idEtiqueta
+      id_tarefa: id,
+      id_etiqueta: idEtiqueta,
     })
-    .onConflict().ignore();
+    .onConflict(['id_tarefa', 'id_etiqueta']).ignore();
 }
 ```
 
 E por fim o endpoint no router de tarefas:
 
+```ts
+import {
+  consultarTarefaPeloId, cadastrarTarefa, consultarTarefas,
+  DadosTarefa, concluirTarefa, reabrirTarefa, alterarTarefa,
+  excluirTarefa, vincularEtiquetaNaTarefa
+} from './model';
+
+...
+
+app.post('/:id/etiquetas/:etiqueta', async (req, resp) => {
+  const { id, etiqueta } = req.params as { id: string, etiqueta: string };
+  const idTarefa = Number(id);
+  await vincularEtiquetaNaTarefa(req.usuario, idTarefa, etiqueta);
+  resp.status(204);
+});
+```
+
+Nota: é possível passar caracteres especiais dessa forma. Basta passar o resultado da chamada JavaScript `encodeURIComponent(etiquetaComCaracteresEspeciais)`. Por exemplo:
+
 ```js
-router.post('/:id/etiquetas', schemaValidator(vincularEtiquetaSchema), asyncWrapper(async (req, res) => {
-  await vincularEtiqueta(req.params.id, req.body.etiqueta, req.loginDoUsuario);
-  res.sendStatus(204);
-}));
+> encodeURIComponent("grupo/item")
+< 'grupo%2Fitem'
 ```
 
 Pare um momento e analise o que ocorre se o código que insere o vínculo entre tarefa e etiqueta falhar. Você pode ter chegado à conclusão que a etiqueta vai permanecer cadastrada. Isso ocorre pois o endpoint não está se comportando de maneira atômica. Neste caso pode parecer inofensivo, mas nem sempre será assim (pense em uma situação mais complicada envolvendo por exemplo saques e depósitos bancários).
