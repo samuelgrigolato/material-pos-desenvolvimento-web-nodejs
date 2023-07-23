@@ -521,19 +521,27 @@ Essa estratégia é bem poderosa, pois permite que exatamente o mesmo script (ou
 O Knex oferece uma ferramenta dessa nativamente, e utilizaremos essa ferramenta a partir de agora. Comece criando um arquivo `knexfile`:
 
 ```sh
-$ ./node_modules/.bin/knex init
+$ npm install --save-dev ts-node
+$ npx knex init -x ts
 ```
 
-Altere o arquivo `knexfile.js` deixando-o dessa forma:
+Altere o arquivo `knexfile.ts` deixando-o dessa forma:
 
-```js
-export const development = {
-  client: 'postgresql',
-  connection: 'postgres://postgres:postgres@localhost:5432/postgres',
-  migrations: {
-    tableName: 'knex_migrations'
-  }
+```ts
+import type { Knex } from 'knex';
+
+const config: { [key: string]: Knex.Config } = {
+  development: {
+    client: 'postgresql',
+    connection: 'postgres://postgres:postgres@localhost:5432/postgres',
+    migrations: {
+      tableName: 'knex_migrations',
+      extension: 'ts',
+    }
+  },
 };
+
+export default config;
 ```
 
 Remova as tabelas `usuarios` e `autenticacoes`. Criaremos elas novamente usando migrations.
@@ -546,36 +554,38 @@ drop table usuarios;
 Crie a primeira migração com o seguinte comando:
 
 ```sh
-$ ./node_modules/.bin/knex --esm migrate:make cria_tabela_usuarios
+$ npx knex migrate:make cria_tabela_usuarios
 ```
 
 Implemente-a com o seguinte código:
 
-```js
-export async function up (knex) {
-  await knex.schema.createTable('usuarios', function (table) {
+```ts
+export async function up(knex: Knex): Promise<void> {
+  await knex.schema.createTable('usuarios', (table) => {
     table.increments();
-    table.text('login').notNullable();
     table.text('nome').notNullable();
+    table.text('login').notNullable();
     table.text('senha').notNullable();
+    table.boolean('admin').notNullable();
   });
-};
+}
 
-export async function down (knex) {
+
+export async function down(knex: Knex): Promise<void> {
   await knex.schema.dropTable('usuarios');
-};
+}
 ```
 
 E execute-a com o seguinte comando:
 
 ```sh
-$ ./node_modules/.bin/knex --esm migrate:latest
+$ npx knex migrate:latest
 ```
 
 É possível usar o comando `down` para reverter o último lote executado:
 
 ```sh
-$ ./node_modules/.bin/knex --esm migrate:down
+$ npx knex migrate:down
 ```
 
 Uma consideração importante é que alguns projetos decidem *não* oferecer suporte para rollback (o método `down` das migrações). Garantir a qualidade desses módulos é custoso e eles praticamente nunca são usados, portanto o argumento principal é não implementá-los e atuar nos rollbacks manualmente quando algum imprevisto ocorrer nos ambientes produtivos.
@@ -583,42 +593,26 @@ Uma consideração importante é que alguns projetos decidem *não* oferecer sup
 Crie uma migration agora para a tabela `autenticacoes`:
 
 ```sh
-$ ./node_modules/.bin/knex --esm migrate:make criar_tabela_autenticacoes
+$ npx knex migrate:make criar_tabela_autenticacoes
 ```
 
 E implemente-a:
 
 ```js
-export async function up (knex) {
-  await knex.schema.createTable('autenticacoes', function (table) {
+export async function up(knex: Knex): Promise<void> {
+  await knex.schema.table('autenticacoes', (table) => {
     table.uuid('id').primary();
     table.integer('id_usuario').notNullable().references('usuarios.id');
   });
 }
 
-export async function down () {
+
+export async function down(knex: Knex): Promise<void> {
   throw new Error('não suportado');
 }
 ```
 
-Proposta de exercício: crie uma migration para uma tabela de categorias (id auto incremento como chave primária e uma coluna `descricao`, obrigatória, tipo texto).
-
-```sh
-$ ./node_modules/.bin/knex --esm migrate:make criar_tabela_categorias
-```
-
-```js
-export async function up (knex) {
-  await knex.schema.createTable('categorias', function (table) {
-    table.increments();
-    table.text('descricao').notNullable();
-  });
-}
-
-export async function down () {
-  throw new Error('não suportado');
-}
-```
+[Exercício 03_tabela_categorias](exercicios/03_tabela_categorias/README.md)
 
 ## Continuação das adequações
 
