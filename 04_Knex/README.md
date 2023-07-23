@@ -663,15 +663,15 @@ export async function down(knex: Knex): Promise<void> {
 
 ## Continuação das adequações
 
-Vamos continuar as adequações, agora focando no model de tarefas. O primeiro passo vai ser adequar o cadastro de tarefa. Comece criando a migração responsável pela tabela:
+Vamos continuar as adequações, agora focando no model de tarefas. Vamos aproveitar o mesmo processo para enriquecer o cadastro com o campo identificador da categoria. Comece criando a migração responsável pela tabela:
 
 ```sh
-$ ./node_modules/.bin/knex --esm migrate:make criar_tabela_tarefas
+$ npx knex migrate:make cria_tabela_tarefas
 ```
 
-```js
-export async function up (knex) {
-  await knex.schema.createTable('tarefas', function (table) {
+```ts
+export async function up(knex: Knex): Promise<void> {
+  await knex.schema.createTable('tarefas', (table) => {
     table.increments();
     table.text('descricao').notNullable();
     table.integer('id_categoria').notNullable().references('categorias.id');
@@ -680,146 +680,167 @@ export async function up (knex) {
   });
 }
 
-export async function down () {
+
+export async function down(knex: Knex): Promise<void> {
   throw new Error('não suportado');
 }
 ```
 
-Adapte agora o método `cadastrarTarefa` dentro do arquivo `tarefas/model.js`:
+Lembre-se de sempre executar as migrações com o comando `npx knex migrate:latest`.
 
-```js
-export async function cadastrarTarefa (tarefa, loginDoUsuario) {
-  if (loginDoUsuario === undefined) {
+Adapte agora o arquivo `tarefas/model.ts`, começando pelas definições de modelo:
+
+```ts
+import knex from '../shared/querybuilder';
+
+import { AcessoNegado, DadosOuEstadoInvalido, UsuarioNaoAutenticado } from '../shared/erros';
+import { Usuario } from '../usuarios/model';
+
+export interface DadosTarefa {
+  descricao: string;
+  id_categoria: number;
+}
+
+type IdTarefa = number;
+
+type Tarefa =
+  DadosTarefa
+  & {
+    id: IdTarefa,
+    id_usuario: number,
+    data_conclusao: Date | null,
+  };
+
+declare module 'knex/types/tables' {
+  interface Tables {
+    tarefas: Tarefa;
+  }
+}
+```
+
+Adapte agora o método `cadastrarTarefa`:
+
+```ts
+export async function cadastrarTarefa(usuario: Usuario | null, dados: DadosTarefa): Promise<IdTarefa> {
+  if (usuario === null) {
     throw new UsuarioNaoAutenticado();
   }
   const res = await knex('tarefas')
     .insert({
-      descricao: tarefa.descricao,
-      id_categoria: tarefa.id_categoria,
-      id_usuario: knex('usuarios').select('id').where('login', loginDoUsuario)
+      ...dados,
+      id_usuario: usuario.id,
     })
-    .returning('id');
-  return res[0];
+    .returning<Pick<Tarefa, 'id'>[]>('id');
+  if (res.length === 0) {
+    throw new Error('Erro ao cadastrar a tarefa. res === undefined');
+  }
+  return res[0].id;
 }
 ```
 
-Adapte também o roteador `tarefas/router.js` adicionando o campo `id_categoria` no schema:
+Adapte também o roteador `tarefas/router.ts` adicionando o campo `id_categoria` no schema:
 
-```js
-const tarefaSchema = {
-  type: 'object',
-  properties: {
-    descricao: { type: 'string' },
-    id_categoria: { type: 'number' }
+```ts
+const postSchema: FastifySchema = {
+  body: {
+    type: 'object',
+    properties: {
+      descricao: { type: 'string' },
+      id_categoria: { type: 'number' },
+    },
+    required: ['descricao', 'id_categoria'],
+    additionalProperties: false,
   },
-  required: [ 'descricao', 'id_categoria' ]
+  response: {
+    201: {
+      type: 'object',
+      properties: {
+        id: { type: 'number' },
+      },
+      required: ['id'],
+    },
+  },
 };
 ```
 
-Proposta de exercício: adeque o endpoint `GET /tarefas/{id}` e depois implemente o endpoint `PATCH /tarefas/{id}`. Este endpoint deve receber uma nova descrição e/ou uma nova categoria e aplicar no registro. Caso você tenha desenvolvido o endpoint que conta as tarefas, adapte-o também.
+Vamos adaptar agora o endpoint `GET /tarefas`. A alteração necessária é no `tarefas/model.ts`:
 
-```js
-export async function buscarTarefa (id, loginDoUsuario) {
-  if (loginDoUsuario === undefined) {
-    throw new UsuarioNaoAutenticado();
-  }
-  const res = await knex('tarefas')
-    .join('usuarios', 'usuarios.id', 'tarefas.id_usuario')
-    .where('tarefas.id', id)
-    .select('usuarios.login', 'tarefas.descricao', 'tarefas.data_conclusao');
-  if (res.length === 0) {
-    throw new DadosOuEstadoInvalido('TarefaNaoEncontrada', 'Tarefa não encontrada.');
-  }
-  const tarefa = res[0];
-  if (tarefa.login !== loginDoUsuario) {
-    throw new AcessoNegado();
-  }
-  return {
-    descricao: tarefa.descricao,
-    concluida: !!tarefa.data_conclusao
-  };
-}
-```
-
-```js
-import { buscarTarefa, cadastrarTarefa, alterarTarefa, concluirTarefa, consultarTarefas, contarTarefasAbertas } from './model.js';
-//...
-const tarefaPatchSchema = {
-  type: 'object',
-  properties: {
-    descricao: { type: 'string' },
-    id_categoria: { type: 'number' }
-  },
-  required: []
-};
-//...
-router.patch('/:id', schemaValidator(tarefaPatchSchema), asyncWrapper(async (req, res) => {
-  const patch = req.body;
-  await alterarTarefa(req.params.id, patch, req.loginDoUsuario);
-  res.sendStatus(204);
-}));
-```
-
-```js
-export async function alterarTarefa (id, patch, loginDoUsuario) {
-  if (loginDoUsuario === undefined) {
-    throw new UsuarioNaoAutenticado();
-  }
-  const res = await knex('tarefas')
-    .join('usuarios', 'usuarios.id', 'tarefas.id_usuario')
-    .where('tarefas.id', id)
-    .select('usuarios.login');
-  if (res.length === 0) {
-    throw new DadosOuEstadoInvalido('TarefaNaoEncontrada', 'Tarefa não encontrada.');
-  }
-  const tarefa = res[0];
-  if (tarefa.login !== loginDoUsuario) {
-    throw new AcessoNegado();
-  }
-  const values = {};
-  if (patch.descricao) values.descricao = patch.descricao;
-  if (patch.id_categoria) values.id_categoria = patch.id_categoria;
-  if (Object.keys(values).length === 0) return;
-  await knex('tarefas')
-    .update(values)
-    .where('id', id);
-}
-```
-
-```js
-export async function contarTarefasAbertas (loginDoUsuario) {
-  if (loginDoUsuario === undefined) {
-    throw new UsuarioNaoAutenticado();
-  }
-  const res = await knex('tarefas')
-    .join('usuarios', 'usuarios.id', 'tarefas.id_usuario')
-    .where('login', loginDoUsuario)
-    .whereNull('data_conclusao')
-    .count('tarefas.id');
-  return parseInt(res[0].count);
-}
-```
-
-Vamos adequar agora o `GET /tarefas`:
-
-```js
-export async function consultarTarefas (termo, loginDoUsuario) {
-  if (loginDoUsuario === undefined) {
+```ts
+export async function consultarTarefas(usuario: Usuario | null, termo?: string): Promise<Tarefa[]> {
+  if (usuario === null) {
     throw new UsuarioNaoAutenticado();
   }
   let query = knex('tarefas')
-    .join('usuarios', 'usuarios.id', 'tarefas.id_usuario')
-    .andWhere('usuarios.login', loginDoUsuario)
-    .select('tarefas.id', 'descricao', 'data_conclusao');
-  if (termo !== undefined && termo !== '') {
+    .select('id', 'descricao', 'id_categoria',
+            'id_usuario', 'data_conclusao', 'descricao'); // sem o await!
+  if (!usuario.admin) {
+    query = query.where('id_usuario', usuario.id);
+  }
+  if (termo) {
     query = query.where('descricao', 'ilike', `%${termo}%`);
   }
-  const res = await query;
-  return res.map(x => ({
-    id: x.id,
-    descricao: x.descricao,
-    concluida: !!x.data_conclusao
-  }));
+  return await query;
+}
+```
+
+Adeque agora a consulta de tarefa por ID. Também no arquivo `tarefas/model.ts`:
+
+```ts
+export async function consultarTarefaPeloId(usuario: Usuario | null, id: IdTarefa): Promise<Tarefa> {
+  if (usuario === null) {
+    throw new UsuarioNaoAutenticado();
+  }
+  const res = await knex('tarefas')
+    .select('id', 'descricao', 'id_categoria',
+            'id_usuario', 'data_conclusao', 'descricao')
+    .where('id', id);
+  const tarefa = res[0];
+  if (tarefa === undefined) {
+    throw new DadosOuEstadoInvalido('Tarefa não encontrada', {
+      codigo: 'TAREFA_NAO_ENCONTRADA'
+    });
+  }
+  if (!usuario.admin && usuario.id !== res[0].id_usuario) {
+     throw new AcessoNegado();
+  }
+  return tarefa;
+}
+```
+
+Vamos desenvolver agora um novo endpoint: `PATCH /tarefas/{id}`. A ideia é permitir que a descrição e/ou a categoria de uma tarefa existente sejam alteradas. Comece adicionando o endpoint no arquivo `tarefas/router.ts`:
+
+```ts
+import {
+  consultarTarefaPeloId, cadastrarTarefa, consultarTarefas,
+  DadosTarefa, concluirTarefa, reabrirTarefa, alterarTarefa
+} from './model';
+
+...
+
+app.patch('/:id', async (req, resp) => {
+  const { id } = req.params as { id: string };
+  const idTarefa = Number(id);
+  const alteracoes = req.body as Partial<DadosTarefa>;
+  await alterarTarefa(req.usuario, idTarefa, alteracoes);
+  resp.status(204);
+});
+```
+
+E agora implemente a função `alterarTarefa` no arquivo `tarefas/model.ts`:
+
+```ts
+export async function alterarTarefa(usuario: Usuario | null, id: IdTarefa, alteracoes: Partial<DadosTarefa>): Promise<void> {
+  if (usuario === null) {
+    throw new UsuarioNaoAutenticado();
+  }
+  await asseguraExistenciaDaTarefaEAcessoDeEdicao(usuario, id);
+  if (Object.keys(alteracoes).length > 0) {
+    await knex('tarefas')
+      .update({
+        descricao: alteracoes.descricao,
+        id_categoria: alteracoes.id_categoria,
+      });
+  }
 }
 ```
 
