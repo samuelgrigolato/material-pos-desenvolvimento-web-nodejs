@@ -25,10 +25,10 @@ Carga horária: 40 horas.
 * [02 - TypeScript](02_TypeScript/README.md)
 * [03 - Fastify](03_Fastify/README.md)
 * [04 - Knex](04_Knex/README.md)
-* [05 - Anexos](05_Anexos/README.md)
-* [06 - Autenticação usando Json Web Token](06_Autenticacao_JWT/README.md)
-* [07 - Integração ChatGPT](07_Integracao_ChatGPT/README.md)
-* [08 - Testes automatizados](08_Testes_automatizados/README.md)
+* [05 - Autenticação usando Json Web Token](05_Autenticacao_JWT/README.md)
+* [06 - Integração ChatGPT](06_Integracao_ChatGPT/README.md)
+* [07 - Testes automatizados](07_Testes_automatizados/README.md)
+* [08 - Anexos](08_Anexos/README.md)
 * [99 - Resumo teórico](99_Resumo_teorico/README.md)
 
 ## Gerando PDF
