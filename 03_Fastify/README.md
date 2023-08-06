@@ -842,6 +842,10 @@ npm install @angular/material
 
 Esse comando instala a dependência `@angular/material` no projeto. Execute o comando abaixo para analisar o gráfico de dependências do projeto:
 
+```
+npm ls
+```
+
 Para ver mais níveis, aumente o nível de profundidade:
 
 ```
