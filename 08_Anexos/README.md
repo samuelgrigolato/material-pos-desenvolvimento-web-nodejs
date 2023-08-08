@@ -92,65 +92,48 @@ Segundo uma outra especificação, essa escolha pode ser "probabilística": http
 
 Note que é possível simular essa exata requisição usando Insomnia/Postman/curl ou qualquer outra ferramenta. Daqui para a frente vamos utilizar este meio para simplificar. Curiosidade: veja como o Insomnia falha na escolha de um boundary.
 
-Agora que finalizamos a parte do front end, é a hora de fechar o `http-echo-server` e implementar o processamento do upload por dentro do Express! O primeiro passo é instalar o Middleware `express-fileupload`:
+Agora que finalizamos a parte do front end, é a hora de fechar o `http-echo-server` e implementar o processamento do upload por dentro do Fastify! O primeiro passo é instalar o Middleware `fastify-file-upload`:
 
 ```sh
-$ npm install express-fileupload
+$ npm install fastify-file-upload
 ```
 
-Vá até o `app.js` e instale o Middleware:
+Vá até o `app.ts` e instale o plugin:
 
-```js
-//..
-import fileUpload from 'express-fileupload';
-//..
-app.use(express.json());
-app.use(fileUpload({
+```ts
+import fileUpload from 'fastify-file-upload';
+
+...
+
+app.register(fileUpload, {
   debug: true,
-  //useTempFiles: false,
-  //abortOnLimit: false,
-  limits: {
-    fileSize: 50 * 1024 * 1024 // 50mb
-  }
-}));
-
-app.use((req, _res, next) => {
-  const contentType = req.headers['content-type'];
-  if (contentType !== undefined &&
-      !contentType.startsWith('application/json') &&
-      !contentType.startsWith('multipart/form-data')) {
-    next({
-      statusCode: 400,
-      message: 'Corpo da requisição deve ser application/json ou multipart/form-data'
-    });
-  } else {
-    next();
-  }
+  limits: { fileSize: 50 * 1024 * 1024 },
 });
-//..
 ```
 
-Com isso os uploads ficam disponíveis no atributo `req.files`. Adicione o endpoint novo no arquivo `tarefas/router.js` e verifique:
+Com isso os uploads ficam disponíveis no atributo `req.raw.files`. Adicione o endpoint novo no arquivo `tarefas/router.ts` e verifique:
 
-```js
-router.post('/:id/anexos', comUnidadeDeTrabalho(), asyncWrapper(async (req, res) => {
-  console.log(req.files);
-  res.json({ id: 1 });
-}));
+```ts
+app.post('/:id/anexos', async (req, resp) => {
+  console.log((req.raw as any).files); // suporte TypeScript da biblioteca está incompleto
+});
 ```
 
-Repare que `files` é um objeto cujas chaves são os nomes dos arquivos encontrados na requisição, e o valor de cada arquivo é um outro objeto com seu nome, tamanho em bytes, mimetype e uma função bem útil chamada `mv`, que permite mover o arquivo para um local no sistema de arquivos. O último passo desse cadastro de anexo é movermos o arquivo para um local persistente e criar um registro no banco de dados que vincula este arquivo com a tarefa. É bem interessante armazenarmos como metadados do upload o seu tamanho, nome e mimetype, informações cruciais para uma boa experiência de download posteriormente. O primeiro passo é escrever uma nova migração de banco de dados criando a tabela de anexos:
+Repare que `raw.files` é um objeto cujas chaves são os nomes dos arquivos encontrados na requisição, e o valor de cada arquivo é um outro objeto com seu nome, tamanho em bytes, mimetype e uma função bem útil chamada `mv`, que permite mover o arquivo para um local no sistema de arquivos. O último passo desse cadastro de anexo é movermos o arquivo para um local persistente e criar um registro no banco de dados que vincula este arquivo com a tarefa. É bem interessante armazenarmos como metadados do upload o seu tamanho, nome e mimetype, informações cruciais para uma boa experiência de download posteriormente. O primeiro passo é escrever uma nova migração de banco de dados criando a tabela de anexos:
 
 ```sh
-$ npx knex --esm migrate:make cria_tabela_anexos
+$ npx knex migrate:make cria_tabela_anexos
 ```
 
 E seu conteúdo:
 
-```js
-export async function up (knex) {
+```ts
+import { Knex } from 'knex';
+
+
+export async function up(knex: Knex): Promise<void> {
   await knex.schema.createTable('anexos', function (table) {
-    table.increments();
+    table.uuid('id').primary();
     table.text('nome').notNullable();
     table.integer('tamanho').notNullable();
     table.text('mime_type').notNullable();
@@ -158,7 +141,8 @@ export async function up (knex) {
   });
 }
 
-export async function down () {
+
+export async function down(knex: Knex): Promise<void> {
   throw new Error('não suportado');
 }
 ```
@@ -166,180 +150,104 @@ export async function down () {
 Não esqueça de rodar a migration criada:
 
 ```sh
-$ npx knex --esm migrate:latest
+$ npx knex migrate:latest
 ```
 
-Agora que a tabela existe é possível implementar o método que insere o registro de anexo vinculado com a tarefa no arquivo `tarefas/model.js`:
+Agora que a tabela existe é possível implementar o método que insere o registro de anexo vinculado com a tarefa no arquivo `tarefas/model.ts`:
 
-```js
-export async function cadastrarAnexo (idTarefa, nome, tamanho, mimeType, loginDoUsuario, uow) {
-  await assegurarExistenciaEAcesso(idTarefa, loginDoUsuario);
-  const res = await knex('anexos')
-    .transacting(uow)
+```ts
+export async function cadastrarAnexo(usuario: Usuario, idTarefa: number, nome: string, tamanho: number, mimeType: string, uow: Knex): Promise<string> {
+  asseguraExistenciaDaTarefaEAcessoDeEdicao(usuario, idTarefa, uow);
+  const id = uuid();
+  await uow('anexos')
     .insert({
+      id,
       id_tarefa: idTarefa,
       nome,
       tamanho,
-      mime_type: mimeType
-    })
-    .returning('id');
-  return res[0];
+      mime_type: mimeType,
+    });
+  return id;
 }
 ```
 
 E por fim terminar a implementação na camada de endpoint (repare que o ID gerado é usado como nome do destino final do upload, quais as repercussões disso em termos de atomicidade da operação?):
 
-```js
-router.post('/:id/anexos', comUnidadeDeTrabalho(), asyncWrapper(async (req, res) => {
-  const arquivo = req.files.arquivo;
+```ts
+import { mkdir } from 'fs/promises';
+
+...
+
+app.post('/:id/anexos', async (req, resp) => {
+  const { id } = req.params as { id: string };
+  const idTarefa = Number(id);
+  const arquivo = (req.raw as any).files.arquivo; // suporte TypeScript da biblioteca está incompleto
   const idAnexo = await cadastrarAnexo(
-    req.params.id,
+    req.usuario,
+    idTarefa,
     arquivo.name,
     arquivo.size,
     arquivo.mimetype,
-    req.loginDoUsuario,
     req.uow
   );
+  await mkdir('uploads', { recursive: true }); // recursive faz com que ignore se já existir
   await arquivo.mv(`uploads/${idAnexo}`);
-  res.json({ id: idAnexo });
-}));
+  return { id: idAnexo };
+});
 ```
 
-Antes de testar crie uma pasta chamada `uploads` no diretório do projeto. Coloque-a no arquivo `.gitignore`.
+[Exercício 01_excluir_anexo](exercicios/01_excluir_anexo/README.md)
 
-Proposta de exercício: implemente o endpoint para excluir anexos, ele deve responder no seguinte caminho: `DELETE /tarefas/:id_tarefa/anexos/:id_anexo`. Evite que a operação funcione se o identificador da tarefa não for o identificador correto para este anexo.
+E o download? O ponto de atenção aqui é perceber que o `resp.send` oferece suporte para streams. Veja:
 
-O primeiro passo é adicionar o método no arquivo `tarefas/model.js`:
+```ts
+import { createReadStream } from 'fs';
 
-```js
-export async function excluirAnexo (idTarefa, idAnexo, loginDoUsuario, uow) {
-  await assegurarExistenciaEAcesso(idTarefa, loginDoUsuario);
-  await assegurarExistenciaEDescendenciaDoAnexo(idTarefa, idAnexo, uow);
-  await knex('anexos')
-    .transacting(uow)
+...
+
+app.get('/:id/anexos/:idAnexo', async (req, resp) => {
+  const { id, idAnexo } = req.params as { id: string, idAnexo: string };
+  const idTarefa = Number(id);
+  const anexo = await consultarAnexoPeloId(req.usuario, idTarefa, idAnexo, req.uow);
+  resp.header('Content-Type', anexo.mime_type);
+  resp.header('Content-Length', anexo.tamanho);
+  await resp.send(createReadStream(`uploads/${idAnexo}`)); // a documentação pede o await aqui
+});
+```
+
+E agora o método `consultarAnexoPeloId` no arquivo `tarefas/model.ts`:
+
+```ts
+interface Anexo {
+  id: string;
+  nome: string;
+  mime_type: string;
+  tamanho: number;
+  id_tarefa: number;
+}
+
+declare module 'knex/types/tables' {
+  interface Tables {
+    tarefas: Tarefa;
+    anexos: Anexo;
+  }
+}
+
+export async function consultarAnexoPeloId(usuario: Usuario, idTarefa: number, idAnexo: string, uow: Knex): Promise<Anexo> {
+  await asseguraExistenciaDaTarefaEAcessoDeEdicao(usuario, idTarefa, uow);
+  const res = await uow('anexos')
+    .select('id', 'id_tarefa', 'nome', 'tamanho', 'mime_type')
     .where('id', idAnexo)
-    .delete();
-}
-
-async function assegurarExistenciaEDescendenciaDoAnexo (idTarefa, idAnexo, uow) {
-  const res = await knex('anexos')
-    .transacting(uow)
-    .select('id_tarefa')
-    .where('id', idAnexo);
-  if (res.length === 0) {
-    throw new DadosOuEstadoInvalido('AnexoNaoEncontrado', 'Anexo não encontrado.');
-  }
-  const anexo = res[0];
-  if (anexo.id_tarefa !== idTarefa) {
-    throw new DadosOuEstadoInvalido('AnexoNaoEncontrado', 'Anexo não encontrado.');
-  }
-}
-```
-
-E por fim expor o endpoint no arquivo `tarefas/router.js`:
-
-```js
-router.delete('/:id/anexos/:idAnexo', comUnidadeDeTrabalho(), asyncWrapper(async (req, res) => {
-  const idAnexo = parseInt(req.params.idAnexo);
-  await excluirAnexo(
-    parseInt(req.params.id),
-    idAnexo,
-    req.loginDoUsuario,
-    req.uow
-  );
-  await fs.rm(`uploads/${idAnexo}`); // MUITO cuidado com essa linha, ela só é segura aqui pois estamos usando parseInt
-  res.sendStatus(204);
-}));
-```
-
-E o download? O ponto de atenção aqui é perceber que existe um método chamado `download` no objeto da resposta que aceita um caminho de arquivo. Veja:
-
-```js
-router.get('/:id/anexos/:idAnexo', comUnidadeDeTrabalho(), asyncWrapper(async (req, res) => {
-  await new Promise((resolve, reject) => {
-    res.download(`uploads/${parseInt(req.params.idAnexo)}`, 'teste.png', err => {
-      if (err) reject(err);
-      else resolve();
+    .first();
+  if (res === undefined || res.id_tarefa !== idTarefa) {
+    throw new DadosOuEstadoInvalido('Anexo não encontrado', {
+      codigo: 'ANEXO_NAO_ENCONTRADO'
     });
-  });
-}));
-```
-
-Vamos começar criando um utilitário `asyncDownload`, em um novo arquivo `async-download.js`:
-
-```js
-export default (path, filename, res) => {
-  return new Promise((resolve, reject) => {
-    res.download(path, filename, err => {
-      if (err) reject(err);
-      else resolve();
-    });
-  });
+  }
+  return res;
 }
-```
-
-Crie agora um método `consultarNomeDoAnexo` no arquivo `tarefas/model.js`. Este método também vai garantir que o usuário tem acesso a este anexo:
-
-```js
-export async function consultarNomeDoAnexo (idTarefa, idAnexo, loginDoUsuario, uow) {
-  await assegurarExistenciaEAcesso(idTarefa, loginDoUsuario);
-  await assegurarExistenciaEDescendenciaDoAnexo(idTarefa, idAnexo, uow);
-  const res = await knex('anexos')
-    .select('nome')
-    .where('id', idAnexo);
-  return res[0].nome;
-}
-```
-
-Adapte por fim o router para utilizar os novos métodos:
-
-```js
-router.get('/:id/anexos/:idAnexo', comUnidadeDeTrabalho(), asyncWrapper(async (req, res) => {
-  const idAnexo = parseInt(req.params.idAnexo);
-  const filename = await consultarNomeDoAnexo(parseInt(req.params.id), idAnexo, req.loginDoUsuario, req.uow);
-  await asyncDownload(`uploads/${idAnexo}`, filename, res);
-}));
 ```
 
 Como implementar este download no front end? Lembre-se do Bearer token de autenticação. Uma boa discussão de alternativas pode ser visualizada aqui: https://stackoverflow.com/questions/29452031/how-to-handle-file-downloads-with-jwt-based-authentication. Como os arquivos aqui devem ser pequenos, a solução de fetch com createObjectUrl parece apropriada e suficiente.
 
-Proposta de exercício: adaptar o endpoint GET /tarefas retornando nele também a lista de anexos. Quais valores é interessante expor para permitir que o front end mostre a lista conforme desenhada?
-
-Para implementar esta alteração basta adaptar a função `consultarTarefas` no arquivo `tarefas/model.js`:
-
-```js
-export async function consultarTarefas (termo, loginDoUsuario) {
-  if (loginDoUsuario === undefined) {
-    throw new UsuarioNaoAutenticado();
-  }
-  let query = knex('tarefas')
-//...
-    });
-  }
-
-  const resAnexos = await knex('anexos')
-    .select('id_tarefa', 'id', 'nome', 'tamanho', 'mime_type')
-    .whereIn('id_tarefa', idsTarefa);
-  const mapaAnexos = {};
-  for (const vinculo of resAnexos) {
-    const idTarefa = vinculo.id_tarefa;
-    if (mapaAnexos[idTarefa] === undefined) {
-      mapaAnexos[idTarefa] = [];
-    }
-    mapaAnexos[idTarefa].push({
-      id: vinculo.id,
-      nome: vinculo.nome,
-      tamanho: vinculo.tamanho,
-      mime_type: vinculo.mime_type
-    });
-  }
-
-  return res.map(x => ({
-    id: x.id,
-    descricao: x.descricao,
-    concluida: !!x.data_conclusao,
-    etiquetas: mapaEtiquetas[x.id] || [],
-    anexos: mapaAnexos[x.id] || []
-  }));
-}
-```
+[Exercício 02_anexos_no_get_tarefas](exercicios/02_anexos_no_get_tarefas/README.md)
