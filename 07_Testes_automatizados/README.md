@@ -209,47 +209,14 @@ it('deve retornar erro se o usuário não for o dono da tarefa', async () => {
 
 [Exercício 01_tarefa_inexistente](exercicios/01_tarefa_inexistente/README.md)
 
+O próximo passo são os testes de integração. Nele, começamos a adicionar dependências externas, de modo a garantir que o código do projeto funciona adequadamente quando se comunicando com eles. Por enquanto continuaremos na camada de modelo, mas não vamos mais "mocar" o acesso ao banco de dados.
 
+Você pode se perguntar como é possível garantir a reproducibilidade e o isolamento dos casos de teste, já que estaremos nos comunicando com uma base de dados real. Existem duas formas de fazer isso:
 
-1. No arquivo de modelo;
-2. Interagindo direto com o `app` Express.
+1. Excluir e criar uma base de dados totalmente limpa (funciona bem para bases não-relacionais onde é barato destruir e criar tudo novamente)
+2. Deixar a base com as migrações executadas, e dar rollback em uma transação global depois da execução dos testes (mais complexo de desenvolver, só que infinitamente mais rápido)
 
-Quanto mais "alto" o ponto de corte, ou seja, quanto mais próximo da chamada HTTP, mais abrangente é o teste. Porém, além de abrangente o teste costuma ser mais complicado de escrever e viabilizar.
-
-Vamos começar pelo teste no arquivo de modelo. Faremos no método que permite cadastrar uma etiqueta em uma tarefa, e trataremos os cenários onde a etiqueta já existe e não existe previamente. Veja a assinatura do método, para relembrar:
-
-```js
-export async function vincularEtiqueta (idTarefa, etiqueta, loginDoUsuario, uow) {
-```
-
-Note que este método (e praticamente todos os outros) vai efetuar muitos acessos na base de dados. Poderíamos "simular" uma base de dados, o que de fato vamos fazer em outro momento, mas nesse caso queremos utilizar uma base de dados real, para aumentar nossa confiança de que não escreveremos migrações de banco de dados que sem querer quebram partes da nossa API. Para atingir este objetivo temos duas coisas a fazer:
-
-1. Adaptar o arquivo `querybuilder.js` e o `knexfile.js` para olhar as variáveis de ambiente na hora de definir a string de conexão com o banco de dados;
-2. Escrever um script utilitário para rodar os testes que, antes de rodá-los, executa as migrações.
-
-Para o primeiro passo, ajuste o arquivo `querybuilder.js` dessa forma:
-
-```js
-const knex = knexLib({
-  client: 'pg',
-  connection: process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/postgres',
-  debug: true
-});
-```
-
-E, similarmente, o `knexfile.js`:
-
-```js
-export const development = {
-  client: 'postgresql',
-  connection: process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/postgres',
-  migrations: {
-    tableName: 'knex_migrations'
-  }
-};
-```
-
-Crie agora um arquivo `rodar_testes.sh`:
+Vamos implementar uma cobertura de teste de integração para o método `alterarNome` do modelo de usuários. Um detalhe importante é que não queremos misturar o nosso desenvolvimento com a execução dos testes, então é interessante usarmos uma base específica para isso. Vamos começar pelo script que vai ficar responsável por coordenar essa execução. Crie um arquivo chamado `rodar_testes.sh` (se você está no Windows pode adaptar em um .bat, ou então ignorar essa parte e usar a mesma base):
 
 ```sh
 #!/bin/bash
@@ -257,224 +224,116 @@ Crie agora um arquivo `rodar_testes.sh`:
 set -e
 
 export DATABASE_URL='postgres://postgres:postgres@localhost:5432/testes'
-npx knex --esm migrate:latest
-NODE_OPTIONS=--experimental-vm-modules npx jest
+export JWT_SECRET='123456'
+npx knex migrate:latest
+npx jest
 ```
 
-Crie o banco de dados `testes` no PostgreSQL.
-
-Dê permissão de execução para este arquivo e execute-o:
+A ideia é que toda execução de testes garanta que estamos com a base na última versão das migrações, e use essa base alternativa ao invés da nossa base de desenvolvimento. Vamos agora garantir que o comando `npm t` execute esse script:
 
 ```sh
 $ chmod +x rodar_testes.sh
-$ ./rodar_testes.sh
 ```
 
-Agora que temos o banco de dados "limpo" disponível nos testes, crie um arquivo chamado `tarefas/model.test.js` com o seguinte conteúdo:
+```json
+{
+  "scripts": {
+    "build": "rm -rf build && tsc -p tsconfig.json",
+    "start": "cd build && JWT_SECRET=123456 node app.js",
+    "test": "./rodar_testes.sh"
+  }
+}
+```
 
-```js
-describe('vincularEtiqueta', () => {
-  it('deve cadastrar a etiqueta se ela ainda não existir', async () => {
-    let trx = await db.transaction();
-    try {
-      let res = await trx('usuarios')
-        .insert({
-          login: 'fulano',
-          nome: 'Fulano',
-          senha: '???'
-        })
-        .returning('id');
-      const idUsuario = res[0];
-      res = await trx('categorias')
-        .insert({ descricao: 'Pessoal' })
-        .returning('id');
-      const idCategoria = res[0];
-      res = await trx('tarefas')
-        .insert({
-          descricao: 'Tarefa X',
-          id_usuario: idUsuario,
-          id_categoria: idCategoria
-        })
-        .returning('id');
-      const idTarefa = res[0];
-      await vincularEtiqueta(idTarefa, 'youtube', 'fulano', trx);
-      res = await trx('etiquetas')
-        .select(['id', 'descricao']);
-      expect(res.length).toBe(1);
-      expect(res[0].descricao).toBe('youtube');
-      const idEtiqueta = res[0].id;
-      res = await trx('tarefa_etiqueta')
-        .select(['id_tarefa', 'id_etiqueta']);
-      expect(res.length).toBe(1);
-      expect(res[0].id_tarefa).toBe(idTarefa);
-      expect(res[0].id_etiqueta).toBe(idEtiqueta);
-    } finally {
-      await trx.rollback();
+O próximo passo é fazer o código entender e usar a variável de ambiente `DATABASE_URL` sempre que ela estiver disponível. Isso precisa ser feito tanto no `knexfile.ts` quanto no arquivo `shared/querybuilder.ts`:
+
+```ts
+import type { Knex } from 'knex';
+
+const config: { [key: string]: Knex.Config } = {
+  development: {
+    client: 'postgresql',
+    connection: process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/postgres',
+    migrations: {
+      tableName: 'knex_migrations',
+      extension: 'ts',
     }
+  },
+};
+
+export default config;
+```
+
+```ts
+import knexLib from 'knex';
+
+const knex = knexLib({
+  client: 'pg',
+  connection: process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/postgres',
+  debug: true
+});
+
+export default knex;
+```
+
+Rode novamente o comando `npm t` e veja que o knex vai reclamar que não encontrou a base `testes`. Crie-a e tente novamente. Estamos prontos para implementar nosso teste de integração isolado e reproduzível! Crie um arquivo `usuarios/model.test.ts`:
+
+```ts
+import knex from '../shared/querybuilder';
+import { alterarNome } from './model';
+
+
+describe('usuarios/model', () => {
+
+  describe('#alterarNome', () => {
+
+    it('deve trocar o nome do usuário', async () => {
+      await knex.transaction(async (trx) => {
+        const usuario = {
+          id: -1,
+          nome: 'Clara',
+          senha: '???',
+          admin: false,
+          login: 'clara',
+        };
+        await trx('usuarios').insert(usuario);
+        await alterarNome(usuario, 'Aralc', trx);
+        const usuarioAlterado = await trx('usuarios')
+          .select('nome')
+          .where({ id: -1 })
+          .first();
+        expect(usuarioAlterado).not.toBeUndefined();
+        expect(usuarioAlterado?.nome).toEqual('Aralc');
+        await trx.rollback(); // uma exceção já vai dar rollback
+      });
+    });
+
   });
+
 });
 ```
 
-Antes de refatorarmos este código, note que o jest não encerra de fato. Isso ocorre pois o knex ainda está com suas conexões abertas. Para encerrá-lo crie um arquivo chamado `jest.config.js` com o seguinte conteúdo:
+Está funcionando, mas o jest fica reclamando de um processo que não finalizou corretamente. Isso acontece pois estamos ativando o knex, que deixa uma Web API aberta em segundo plano, impedindo que o processo Node.js encerre totalmente. Para resolver isso temos que fechar manualmente o Knex após a execução de todos os testes. Vamos usar a configuração `setupFilesAfterEnv` do jest para isso:
 
 ```js
-export default {
-  setupFilesAfterEnv: [
-    './setupTest.js'
-  ]
+/** @type {import('ts-jest').JestConfigWithTsJest} */
+module.exports = {
+  preset: 'ts-jest',
+  testEnvironment: 'node',
+  testPathIgnorePatterns: ['/node_modules/', '/build/'],
+  setupFilesAfterEnv: ['./setupTest.ts'],
 };
 ```
 
-Agora crie o arquivo `setupTest.js`:
+E criar o arquivo `setupTest.ts`:
 
-```js
-import db from './querybuilder';
+```ts
+import knex from './shared/querybuilder';
+
 
 afterAll(async () => {
-  await db.destroy();
+  await knex.destroy();
 });
-```
-
-Antes de continuar podemos implementar algumas refatorações no código de teste. A primeira delas é a criação de um utilizário `comTransacaoDeTeste` que encapsula a criação da transação e seu rollback. Crie um arquivo `testes/transacao-de-teste.js`:
-
-```js
-import db from '../querybuilder';
-
-export default (callback) => {
-  return async () => {
-    let trx = await db.transaction();
-    try {
-      await callback(trx);
-    } finally {
-      await trx.rollback();
-    }
-  }
-};
-```
-
-E use-o no arquivo `model.test.js`:
-
-```js
-it('deve cadastrar a etiqueta se ela ainda não existir', comTransacaoDeTeste(async (trx) => {
-  let res = await trx('usuarios')
-    .insert({
-      login: 'fulano',
-      nome: 'Fulano',
-      senha: '???'
-    })
-    .returning('id');
-  //...
-  res = await trx('tarefa_etiqueta')
-    .select(['id_tarefa', 'id_etiqueta']);
-  expect(res.length).toBe(1);
-  expect(res[0].id_tarefa).toBe(idTarefa);
-  expect(res[0].id_etiqueta).toBe(idEtiqueta);
-}));
-```
-
-A próxima refatoração é extrair a criação dos registros para funções reutilizáveis. Essas funções são comumente chamadas de "fábricas". Crie um arquivo `testes/fabrica.js` com o seguinte conteúdo:
-
-```js
-export async function fabricarCategoria (trx) {
-  const res = await trx('categorias')
-    .insert({ descricao: 'Categoria Teste' })
-    .returning('id');
-  return res[0];
-}
-
-export async function fabricarUsuario (trx, { login } = {}) {
-  const res = await trx('usuarios')
-    .insert({
-      nome: 'Usuário Teste',
-      login: login || 'usuario',
-      senha: '123456'
-    })
-    .returning('id');
-  return res[0];
-}
-
-export async function fabricarTarefa (trx, { id_usuario, id_categoria }) {
-  const res = await trx('tarefas')
-    .insert({
-      descricao: 'Tarefa Teste',
-      id_usuario,
-      id_categoria
-    })
-    .returning('id');
-  return res[0];
-}
-```
-
-E use esses métodos no `model.test.js`:
-
-```js
-import comTransacaoDeTeste from '../testes/transacao-de-teste';
-import { fabricarCategoria, fabricarTarefa, fabricarUsuario } from '../testes/fabrica';
-import { vincularEtiqueta } from './model';
-
-describe('vincularEtiqueta', () => {
-  it('deve cadastrar a etiqueta se ela ainda não existir', comTransacaoDeTeste(async (trx) => {
-    const idUsuario = await fabricarUsuario(trx, { login: 'fulano' });
-    const idCategoria = await fabricarCategoria(trx);
-    const idTarefa = await fabricarTarefa(trx, { id_usuario: idUsuario, id_categoria: idCategoria });
-    await vincularEtiqueta(idTarefa, 'youtube', 'fulano', trx);
-    res = await trx('etiquetas')
-      .select(['id', 'descricao']);
-    expect(res.length).toBe(1);
-    expect(res[0].descricao).toBe('youtube');
-    const idEtiqueta = res[0].id;
-    res = await trx('tarefa_etiqueta')
-      .select(['id_tarefa', 'id_etiqueta']);
-    expect(res.length).toBe(1);
-    expect(res[0].id_tarefa).toBe(idTarefa);
-    expect(res[0].id_etiqueta).toBe(idEtiqueta);
-  }));
-});
-
-export default {};
-```
-
-Node que idCategoria serve apenas para criar a tarefa, então faz sentido mover esta criação para dentro do método `fabricarTarefa`:
-
-```js
-export async function fabricarTarefa (trx, { idUsuario, idCategoria }) {
-  const res = await trx('tarefas')
-    .insert({
-      descricao: 'Tarefa Teste',
-      id_usuario: idUsuario,
-      id_categoria: idCategoria || await fabricarCategoria(trx)
-    })
-    .returning('id');
-  return res[0];
-}
-```
-
-E adaptar mais uma vez o `model.test.js`:
-
-```js
-import comTransacaoDeTeste from '../testes/transacao-de-teste';
-import { fabricarTarefa, fabricarUsuario } from '../testes/fabrica';
-import { vincularEtiqueta } from './model';
-
-describe('vincularEtiqueta', () => {
-  it('deve cadastrar a etiqueta se ela ainda não existir', comTransacaoDeTeste(async (trx) => {
-    const idUsuario = await fabricarUsuario(trx, { login: 'fulano' });
-    const idTarefa = await fabricarTarefa(trx, { idUsuario });
-    await vincularEtiqueta(idTarefa, 'youtube', 'fulano', trx);
-    let res = await trx('etiquetas')
-      .select(['id', 'descricao']);
-    expect(res.length).toBe(1);
-    expect(res[0].descricao).toBe('youtube');
-    const idEtiqueta = res[0].id;
-    res = await trx('tarefa_etiqueta')
-      .select(['id_tarefa', 'id_etiqueta']);
-    expect(res.length).toBe(1);
-    expect(res[0].id_tarefa).toBe(idTarefa);
-    expect(res[0].id_etiqueta).toBe(idEtiqueta);
-  }));
-});
-
-export default {};
 ```
 
 Proposta de exercício: crie um caso de teste que garante que o vínculo de uma etiqueta existente funciona sem quebrar a aplicação.
