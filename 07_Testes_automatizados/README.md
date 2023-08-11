@@ -10,89 +10,201 @@ Existem três grandes frameworks de teste para JavaScript: Mocha, Jest e Jasmine
 $ npm install --save-dev jest
 ```
 
-Antes de partir para o desenvolvimento de testes para a API de tarefas, vamos começar com um exemplo mais simples: uma função que calcula o enésimo número de fibonacci. Crie um arquivo chamado `fib.js` com o seguinte conteúdo:
+Mas instalar o Jest não é suficiente, pois estamos utilizando TypeScript no projeto. Uma opção para esta combinação seria sempre transpilar o código rodando o comando `tsc`, e executar os testes da pasta `build`. Essa é uma solução simples que funciona bem para projetos cujo tempo total de compilação não é muito longo. Existe uma abordagem utilizando Babel, que não descreveremos nem utilizaremos no curso, e uma terceira, usando o `ts-node`, que já vimos durante a escrita de migrações `knex`. Existe um pacote, baseado no `ts-node`, que faz a ponte do Jest para ele, chamado `ts-jest`. Vamos instalá-lo:
 
-```js
-export default () => 0;
+```commandline
+$ npm install --save-dev ts-jest
+$ npm install --save-dev @types/jest
 ```
 
-E agora um outro arquivo chamado `fib.test.js`:
+O terceiro passo necessário é explicar para o executável `jest` que ele deve usar o `ts-jest`, e que deve ignorar arquivos na pasta `build` do projeto. Isso é feito no arquivo de configuração `jest.config.js`, que pode ser criado pelo próprio `ts-jest` através do seguinte comando:
+
+```commandline
+$ npx ts-jest config:init
+```
+
+Edite agora o arquivo `jest.config.js`, adicionando a propriedade `testPathIgnorePatterns`, dessa forma:
 
 ```js
+/** @type {import('ts-jest').JestConfigWithTsJest} */
+module.exports = {
+  preset: 'ts-jest',
+  testEnvironment: 'node',
+  testPathIgnorePatterns: ['/node_modules/', '/build/'],
+};
+```
+
+Agora estamos prontos para escrever nosso primeiro teste. Antes de começar a adicionar cobertura no código do Tafeito, vamos explorar um hipotécico módulo que calcula o enésimo número de fibonacci, assim podemos focar no Jest em si. Crie um arquivo chamado `fib/fib.ts` com o seguinte conteúdo:
+
+```ts
+export default (n: number) => 0;
+```
+
+E agora um outro arquivo chamado `fib/fib.test.ts`:
+
+```ts
 import fib from './fib';
 
 describe('fib', () => {
-  it ('deve retornar 1 para n=1', () => {
-    expect(fib(1)).toBe(1);
-  })
-});
 
-export default {};
+  it('should return 1 when n is 1', () => {
+    expect(fib(1)).toBe(1);
+  });
+
+});
 ```
 
 Para executar utilize o seguinte comando:
 
 ```sh
-NODE_OPTIONS=--experimental-vm-modules npx jest
+npx jest
 ```
 
-Uma boa dica é sempre alterar o código do jeito mais simples possível para fazer os testes existentes passarem. Neste caso basta alterar o retorno para 1. Obviamente ainda não temos uma função capaz de gerar os números de fibonacci, então vamos adicionar mais alguns testes:
+Lembra da seção de scripts do `package.json`? Agora é uma boa hora para adicionar um atalho para executar os testes do projeto:
 
-```js
+```json
+{
+  // ...
+  "scripts": {
+    "build": "rm -rf build && tsc -p tsconfig.json",
+    "start": "cd build && JWT_SECRET=123456 node app.js",
+    "test": "jest"
+  }
+  // ...
+}
+```
+
+Agora basta usar o comando `npm t` para rodar os testes.
+
+Vamos "fazer os testes passarem" da maneira mais simples possível, que no caso é simplesmente alterar o retorno para 1. Obviamente ainda não temos uma função capaz de gerar os números de fibonacci, então vamos adicionar mais alguns testes (esse processo de desenvolvimento é chamado de Test-Driven Development, ou TDD):
+
+```ts
+import fib from './fib';
+
 describe('fib', () => {
-  it ('deve retornar 1 para n=1', () => {
+
+  it('should return 1 when n is 1', () => {
     expect(fib(1)).toBe(1);
   });
 
-  it ('deve retornar 1 para n=2', () => {
+  it('should return 1 when n is 2', () => {
     expect(fib(2)).toBe(1);
   });
 
-  it ('deve retornar 2 para n=3', () => {
+  it('should return 2 when n is 3', () => {
     expect(fib(3)).toBe(2);
   });
 
-  it ('deve retornar 3 para n=4', () => {
+  it('should return 3 when n is 4', () => {
     expect(fib(4)).toBe(3);
   });
 
-  it ('deve retornar 5 para n=5', () => {
+  it('should return 5 when n is 5', () => {
     expect(fib(5)).toBe(5);
   });
 
-  it ('deve retornar 8 para n=6', () => {
+  it('should return 8 when n is 6', () => {
     expect(fib(6)).toBe(8);
   });
+
 });
 ```
 
 E implementar a solução final:
 
-```js
-export default (n) => {
-  let anterior = 0;
-  let res = 1;
-  let i = 1;
-  while (i < n) {
-    const aux = anterior;
-    anterior = res;
-    res = res + aux;
-    i++;
+```ts
+const fib = (n: number): number => {
+  if (n <= 2) {
+    return 1;
   }
-  return res;
-};
-```
-
-Proposta de exercício: refatore a solução de modo que ela use recursão. Note que não deve ser necessário alterar nada no arquivo de teste, e ele ajudará a garantir que não houve regressão.
-
-```js
-function fib (n) {
-  if (n <= 0) return 0;
-  if (n <= 2) return 1;
   return fib(n - 1) + fib(n - 2);
-}
+};
 
 export default fib;
+```
+
+Agora que sabemos como é a estrutura de um teste automatizado podemos aplicá-lo na API de tarefas. Vamos começar com uma cobertura de teste *unitário*, ou seja, um teste que exercita um bloco sem nenhuma dependência, seja do próprio repositório ou serviços/APIs externas, como banco de dados. Existem várias estratégias para viabilizar testes unitários, como injeção de dependências, patching/mocking etc.
+
+Vamos analisar o método `estimar` do módulo de tarefas. Veja como é mais simples passar uma implementação "mocada" (alternativa) do conceito de chatbot, em comparação com o `uow`. Isso ocorre pois fizemos um bom trabalho ao manter os detalhes de implementação do chatbot OpenAI afastados do módulo de domínio para tarefas. Comece criando um arquivo `tarefas/model.test.ts`:
+
+```ts
+import { Chatbot } from '../chatbot/api';
+import { Usuario } from '../usuarios/model';
+import { estimar } from './model';
+
+
+describe('tarefas/model', () => {
+
+  describe('#estimar', () => {
+
+    it('deve retornar a estimativa no caso feliz', async () => {
+      const usuario: Usuario = {
+        id: 1,
+        nome: 'Fulano',
+        senha: '???',
+        admin: false,
+        login: 'fulano',
+      };
+      const idTarefa = 1;
+      const tarefa = {
+        id_usuario: 1,
+        descricao: 'Tarefa X',
+      }
+
+      const uow = () => ({
+        select: () => ({
+          where: () => ({
+            first: () => Promise.resolve(tarefa),
+          })
+        })
+      });
+
+      const chatbot: Chatbot = {
+        perguntarFraseUnica: () => { throw new Error('Não deveria ter chamado') },
+        perguntarListaDeFrases: () => { throw new Error('Não deveria ter chamado') },
+        perguntarDuracaoDeTempo: async () => {
+          return { horas: 1, minutos: 2 };
+        }
+      };
+
+      const estimativa = await estimar(usuario, idTarefa, uow as any, chatbot);
+
+      expect(estimativa).toEqual({ horas: 1, minutos: 2 });
+    });
+
+  });
+
+});
+```
+
+Vamos agora adicionar mais um caso de teste, agora para cobrir o cenário onde o usuário não é o dono da tarefa:
+
+```ts
+it('deve retornar erro se o usuário não for o dono da tarefa', async () => {
+  const usuario: Usuario = {
+    id: 2,
+    nome: 'Hackerman',
+    senha: '???',
+    admin: false,
+    login: 'hackerman',
+  };
+  const idTarefa = 1;
+  const tarefa = {
+    id_usuario: 1,
+    descricao: 'Tarefa X',
+  }
+
+  const uow = () => ({
+    select: () => ({
+      where: () => ({
+        first: () => Promise.resolve(tarefa),
+      })
+    })
+  });
+
+  expect(estimar(usuario, idTarefa, uow as any, null as any))
+    .rejects.toThrowError('Acesso ao recurso solicitado foi negado');
+});
 ```
 
 Agora que sabemos como é a estrutura de um teste automatizado podemos aplicá-lo na API de tarefas. O primeiro passo é decidir onde será o "corte", ou seja, qual interface iremos tratar como sujeito do teste? Essa escolha é importante e decide a abrangência do teste. No nosso caso temos dois candidatos para pontos de corte, e implementaremos o mesmo exemplo nos dois lugares. São eles:
