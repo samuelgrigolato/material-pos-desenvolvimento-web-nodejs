@@ -336,9 +336,8 @@ afterAll(async () => {
 });
 ```
 
-Proposta de exercício: crie um caso de teste que garante que o vínculo de uma etiqueta existente funciona sem quebrar a aplicação.
+[Exercício 02_vinculo_etiqueta_tarefa](exercicios/02_vinculo_etiqueta_tarefa/README.md)
 
-Comece criando uma fábrica para etiquetas no arquivo `testes/fabrica.js`:
 
 ```js
 export async function fabricarEtiqueta (trx, { descricao, cor } = {}) {
