@@ -338,255 +338,145 @@ afterAll(async () => {
 
 [Exercício 02_vinculo_etiqueta_tarefa](exercicios/02_vinculo_etiqueta_tarefa/README.md)
 
+O último tipo de teste que adicionaremos é o da camada do Fastify. Desenvolveremos ele no mesmo estilo do teste de integração de modelo, ou seja, com uma unidade de trabalho real que sempre faz um rollback no final do teste. Para conseguirmos fazer isso com o Fastify o processo será bem mais complicado, dado o nível de entrelaçamento que temos entre o Fastify e o conceito de unidade de trabalho.
 
-```js
-export async function fabricarEtiqueta (trx, { descricao, cor } = {}) {
-  const res = await trx('etiquetas')
-    .insert({
-      descricao: descricao || 'Etiqueta Teste',
-      cor: cor || 'white'
-    })
-    .returning('id');
-  return res[0];
-}
-```
+Nosso objetivo final é ter uma instância de app Fastify que use uma versão diferente do plugin de unidade de trabalho quando estiver sendo executada nos testes. Vamos começar criando um arquivo `app-factory.ts`:
 
-E depois adicione um novo bloco `it` no arquivo `model.test.js`:
+```ts
+import fastify, { FastifyPluginCallback } from 'fastify';
 
-```js
-it('deve funcionar se a etiqueta já existir', comTransacaoDeTeste(async (trx) => {
-  const idUsuario = await fabricarUsuario(trx, { login: 'fulano' });
-  const idTarefa = await fabricarTarefa(trx, { idUsuario });
-  const idEtiqueta = await fabricarEtiqueta(trx, { descricao: 'youtube' });
-  await vincularEtiqueta(idTarefa, 'youtube', 'fulano', trx);
-  const res = await trx('tarefa_etiqueta')
-    .select(['id_tarefa', 'id_etiqueta']);
-  expect(res.length).toBe(1);
-  expect(res[0].id_tarefa).toBe(idTarefa);
-  expect(res[0].id_etiqueta).toBe(idEtiqueta);
-}));
-```
+import { Chatbot } from './chatbot/api';
+import chatbotPlugin from './chatbot/fastify-plugin';
+import { recuperarUsuarioAutenticado } from './usuarios/model';
+import usuariosRouter from './usuarios/router';
+import tarefasRouter from './tarefas/router';
+import etiquetasRouter from './etiquetas/router';
+import categoriasRouter from './categorias/router';
+import { ErroNoProcessamento } from './shared/erros';
 
-Agora vamos subir um nível e implementar esses mesmos testes conversando direto com o Express. Para isso utilizaremos uma biblioteca chamada `supertest`. Instale-a:
 
-```sh
-$ npm i supertest
-```
+export default (uowPlugin: FastifyPluginCallback, chatbot: Chatbot) => {
+  const app = fastify({ logger: true });
 
-Possivelmente agora você irá se lembrar que a unidade de trabalho é um Middleware no Express. De alguma forma teremos que interceptá-lo para injetar a transação de teste, e isso será feito da seguinte forma:
-
-1. Extrair o código que adiciona os middlewares e routers na instância de app em um arquivo `setup-app.js`;
-2. Chamar esse método no arquivo `app.js`;
-3. Criar um utilitário `testes/app-de-teste.js` que monta uma instância de app adicionando um middleware que expõe uma transação de teste;
-4. Adaptar o hook `comUnidadeDeTrabalho` para não sobrescrever `req.uow` caso já exista.
-
-Primeiro passo, crie o arquivo `setup-app.js` e mova uma parte do conteúdo que está em `app.js`:
-
-```js
-import express from 'express';
-import cors from 'cors';
-import fileUpload from 'express-fileupload';
-
-import asyncWrapper from './async-wrapper.js';
-import { recuperarLoginDoUsuarioAutenticado } from './usuarios/model.js';
-import usuariosRouter from './usuarios/router.js';
-import tarefasRouter from './tarefas/router.js';
-import etiquetasRouter from './etiquetas/router.js';
-import categoriasRouter from './categorias/router.js';
-
-export default app => {
-  app.use(cors());
-  app.use(express.json());
-  app.use(fileUpload({
-    debug: true,
-    //useTempFiles: false,
-    //abortOnLimit: false,
-    limits: {
-      fileSize: 50 * 1024 * 1024 // 50mb
-    }
-  }));
-  
-  app.use((req, _res, next) => {
-    const contentType = req.headers['content-type'];
-    if (contentType !== undefined &&
-        !contentType.startsWith('application/json') &&
-        !contentType.startsWith('multipart/form-data')) {
-      next({
-        statusCode: 400,
-        message: 'Corpo da requisição deve ser application/json ou multipart/form-data'
-      });
-    } else {
-      next();
-    }
+  app.setNotFoundHandler((req, resp) => {
+    resp.status(404).send({ erro: 'Rota não encontrada' });
   });
+
+  // ...
+
+  app.decorateRequest('usuario', null);
+  app.register(chatbotPlugin(chatbot));
+  app.register(uowPlugin);
+
+  // ...
+
+  app.register(usuariosRouter, { prefix: '/usuarios' });
+  app.register(tarefasRouter, { prefix: '/tarefas' });
+  app.register(etiquetasRouter, { prefix: '/etiquetas' });
+  app.register(categoriasRouter, { prefix: '/categorias' });
   
-  app.use(asyncWrapper(async (req, _res, next) => {
-    const authorization = req.headers['authorization'];
-    const match = /^Bearer (.*)$/.exec(authorization);
-    if (match) {
-      const autenticacao = match[1];
-      const loginDoUsuario = await recuperarLoginDoUsuarioAutenticado(autenticacao);
-      req.loginDoUsuario = loginDoUsuario;
-    }
-    next();
-  }));
-  
-  app.use('/tarefas', tarefasRouter);
-  app.use('/usuarios', usuariosRouter);
-  app.use('/etiquetas', etiquetasRouter);
-  app.use('/categorias', categoriasRouter);
-  
-  app.use((_req, res) => {
-    res.status(404).send({
-      razao: 'Rota não existe.'
-    });
-  });
-  
-  app.use((err, _req, res, _next) => {
-    let resposta;
-    if (err.codigo) {
-      resposta = {
-        codigo: err.codigo,
-        descricao: err.message,
-        extra: err.extra
-      };
-    } else {
-      resposta = {
-        razao: err.message || err
-      };
-    }
-    res.status(err.statusCode || 500).send(resposta);
-  });
+  return app;
 };
 ```
 
-E adapte o `app.js` dessa maneira:
+Adapte o `app.ts` para usar essa fábrica, garantindo que tanto o app quanto o teste usem o mesmo código:
 
-```js
-import express from 'express';
-import setupApp from './setup-app.js';
+```ts
+import openai from './chatbot/openai';
+import uowPlugin from './core/uow';
+import appFactory from './app-factory';
 
-const app = express();
-setupApp(app);
-app.listen(8080);
-```
 
-Agora crie o arquivo `testes/app-de-teste.js`:
+const app = appFactory(uowPlugin, openai);
 
-```js
-import express from 'express';
-import comTransacaoDeTeste from './transacao-de-teste';
-import setupApp from '../setup-app';
 
-export default (callback) => {
-  return comTransacaoDeTeste(async (trx) => {
-    const appDeTeste = express();
-    appDeTeste.use(function (req, _res, next) {
-      req.uow = trx;
-      next();
-    });
-    setupApp(appDeTeste);
-    await callback(appDeTeste, trx);
-  });
-};
-```
-
-E adapte o método `comUnidadeDeTrabalho` no arquivo `querybuilder.js`:
-
-```js
-export function comUnidadeDeTrabalho () {
-  return function (req, res, next) {
-    if (req.uow) { // esse if foi adicionado
-      next();
-      return;
-    }
-    knex.transaction(function (trx) {
-      res.on('finish', function () {
-        if (res.statusCode < 200 || res.statusCode > 299) {
-          trx.rollback();
-        } else {
-          trx.commit();
-        }
-      });
-      req.uow = trx;
-      next();
-    });
+async function main() {
+  try {
+    await app.listen({ port: 3000 });
+  } catch (err) {
+    app.log.error(err);
+    process.exit(1);
   }
 }
+main();
 ```
 
-Com o supertest e essa preparação agora é possível escrever testes nesse nível. Crie um arquivo chamado `tarefas/router.test.js` com o seguinte conteúdo:
+Agora podemos usar a mesma estratégia dos testes de integração na camada de modelo, passando a transação para o método fábrica de instância do Fastify. Vamos exercitar isso testando o método de alteração de nome do usuário na camada de roteador. Crie um arquivo `usuarios/router.test.ts`:
 
-```js
-import request from 'supertest';
-import comAppDeTeste from '../testes/app-de-teste';
-import { fabricarEtiqueta, fabricarTarefa, fabricarUsuario } from '../testes/fabrica';
+```ts
+import { FastifyInstance } from 'fastify';
+import fastifyPlugin from 'fastify-plugin';
+import { Knex } from 'knex';
 
-import { gerarToken } from '../usuarios/model';
+import knex from '../shared/querybuilder';
+import papagaio from '../chatbot/papagaio';
+import appFactory from '../app-factory';
+import { gerarToken } from './model';
 
-describe('vincularEtiqueta', () => {
-  it('deve cadastrar a etiqueta se ela ainda não existir', comAppDeTeste(async (appDeTeste, trx) => {
-    const idUsuario = await fabricarUsuario(trx, { login: 'fulano' });
-    const idTarefa = await fabricarTarefa(trx, { idUsuario });
-    await request(appDeTeste)
-      .post(`/tarefas/${idTarefa}/etiquetas`)
-      .set('Authorization', `Bearer ${gerarToken('fulano')}`)
-      .send({ etiqueta: 'youtube' })
-      .expect(204);
-    let res = await trx('etiquetas')
-      .select(['id', 'descricao']);
-    expect(res.length).toBe(1);
-    expect(res[0].descricao).toBe('youtube');
-    const idEtiqueta = res[0].id;
-    res = await trx('tarefa_etiqueta')
-      .select(['id_tarefa', 'id_etiqueta']);
-    expect(res.length).toBe(1);
-    expect(res[0].id_tarefa).toBe(idTarefa);
-    expect(res[0].id_etiqueta).toBe(idEtiqueta);
-  }));
 
-  it('deve funcionar se a etiqueta já existir', comAppDeTeste(async (appDeTeste, trx) => {
-    const idUsuario = await fabricarUsuario(trx, { login: 'fulano' });
-    const idTarefa = await fabricarTarefa(trx, { idUsuario });
-    const idEtiqueta = await fabricarEtiqueta(trx, { descricao: 'youtube' });
-    await request(appDeTeste)
-      .post(`/tarefas/${idTarefa}/etiquetas`)
-      .set('Authorization', `Bearer ${gerarToken('fulano')}`)
-      .send({ etiqueta: 'youtube' })
-      .expect(204);
-    const res = await trx('tarefa_etiqueta')
-      .select(['id_tarefa', 'id_etiqueta']);
-    expect(res.length).toBe(1);
-    expect(res[0].id_tarefa).toBe(idTarefa);
-    expect(res[0].id_etiqueta).toBe(idEtiqueta);
-  }));
+const testUowPlugin = (trx: Knex.Transaction) =>
+  fastifyPlugin(async (app: FastifyInstance) => {
+    app.decorate('uow');
+    app.addHook('onRequest', async (req) => {
+      req.uow = trx;
+    });
+  });
+
+
+describe('usuarios/router', () => {
+
+  describe('PUT /usuarios/autenticado/nome', () => {
+
+    it('deve alterar o nome do usuário logado', async () => {
+      await knex.transaction(async (trx) => {
+        await trx('usuarios')
+          .insert({
+            id: -1,
+            nome: 'Fulano',
+            senha: '???',
+            admin: false,
+            login: 'fulano',
+          });
+
+        const app = appFactory(testUowPlugin(trx), papagaio);
+        const resp = await app.inject({
+          method: 'PUT',
+          path: '/usuarios/autenticado/nome',
+          headers: {
+            'content-type': 'application/json',
+            'authorization': `Bearer ${gerarToken('fulano')}`
+          },
+          payload: { nome: 'Onaluf' },
+        });
+
+        expect(resp.statusCode).toEqual(204);
+
+        const res = await trx('usuarios')
+          .select('nome')
+          .where({ login: 'fulano' });
+        expect(res[0].nome).toEqual('Onaluf');
+
+        await trx.rollback(); // uma exceção já vai dar rollback
+      });
+    });
+
+  });
+
 });
-
-export default {};
 ```
 
-Note que uma pequena refatoração no arquivo `usuarios/model.js` foi necessária para expor uma maneira de gerar um token de autenticação dado um login:
+Note que foi necessário expor o método `gerarToken` no arquivo `usuarios/model.ts`:
 
-```js
-export function gerarToken (login) {
+```ts
+export function gerarToken(login: string): string {
   return jwt.sign({
     login,
-    exp: Math.floor(new Date().getTime() / 1000) + 10 * 60 * 60 /* 10 horas */
+    exp: Math.floor(new Date().getTime() / 1000) + 10 * 24 * 60 * 60 /* 10 dias */
   }, JWT_SECRET);
 }
 
-
-export async function autenticar (login, senha) {
-  const res = await knex('usuarios')
-    .where('login', login)
-    .select('id', 'senha');
-  if (res.lenght === 0) {
-    throw new DadosOuEstadoInvalido('CredenciaisInvalidas', 'Credenciais inválidas.');
-  }
-  const usuario = res[0];
-  if (!bcrypt.compareSync(senha, usuario.senha)) {
-    throw new DadosOuEstadoInvalido('CredenciaisInvalidas', 'Credenciais inválidas.');
-  }
+export async function autenticar (login: Login, senha: Senha, uow: Knex): Promise<TokenAutenticacao> {
+  // ...
   return gerarToken(login);
 }
 ```
