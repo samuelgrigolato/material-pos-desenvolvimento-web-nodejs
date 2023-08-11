@@ -202,12 +202,14 @@ it('deve retornar erro se o usuário não for o dono da tarefa', async () => {
     })
   });
 
-  expect(estimar(usuario, idTarefa, uow as any, null as any))
+  await expect(estimar(usuario, idTarefa, uow as any, null as any))
     .rejects.toThrowError('Acesso ao recurso solicitado foi negado');
 });
 ```
 
-Agora que sabemos como é a estrutura de um teste automatizado podemos aplicá-lo na API de tarefas. O primeiro passo é decidir onde será o "corte", ou seja, qual interface iremos tratar como sujeito do teste? Essa escolha é importante e decide a abrangência do teste. No nosso caso temos dois candidatos para pontos de corte, e implementaremos o mesmo exemplo nos dois lugares. São eles:
+[Exercício 01_tarefa_inexistente](exercicios/01_tarefa_inexistente/README.md)
+
+
 
 1. No arquivo de modelo;
 2. Interagindo direto com o `app` Express.

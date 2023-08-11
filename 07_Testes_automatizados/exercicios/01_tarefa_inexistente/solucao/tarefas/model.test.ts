@@ -68,6 +68,21 @@ describe('tarefas/model', () => {
         .rejects.toThrowError('Acesso ao recurso solicitado foi negado');
     });
 
+    it('deve retornar erro se a tarefa não existir', async () => {
+      const idTarefa = 1;
+
+      const uow = () => ({
+        select: () => ({
+          where: () => ({
+            first: () => Promise.resolve(undefined),
+          })
+        })
+      });
+
+      await expect(estimar(null as any, idTarefa, uow as any, null as any))
+        .rejects.toThrowError('Tarefa não encontrada');
+    });
+
   });
 
 });

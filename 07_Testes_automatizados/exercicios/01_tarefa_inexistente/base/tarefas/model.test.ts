@@ -64,7 +64,7 @@ describe('tarefas/model', () => {
         })
       });
 
-      await expect(estimar(usuario, idTarefa, uow as any, null as any))
+      expect(estimar(usuario, idTarefa, uow as any, null as any))
         .rejects.toThrowError('Acesso ao recurso solicitado foi negado');
     });
 
