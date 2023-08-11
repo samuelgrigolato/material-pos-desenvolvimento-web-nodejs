@@ -101,7 +101,8 @@ export async function alterarTarefa(usuario: Usuario | null, id: IdTarefa, alter
       .update({
         descricao: alteracoes.descricao,
         id_categoria: alteracoes.id_categoria,
-      });
+      })
+      .where('id', id);
   }
 }
 

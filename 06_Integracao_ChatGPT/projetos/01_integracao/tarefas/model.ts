@@ -143,7 +143,8 @@ export async function alterarTarefa(
       .update({
         descricao: alteracoes.descricao,
         id_categoria: alteracoes.id_categoria,
-      });
+      })
+      .where('id', id);
   }
 }
 
