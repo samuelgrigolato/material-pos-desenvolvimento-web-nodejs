@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset='utf-8'>
+  <meta http-equiv='X-UA-Compatible' content='IE=edge'>
+  <title>Page Title</title>
+  <meta name='viewport' content='width=device-width, initial-scale=1'>
+</head>
+<body>
+  <button onclick="fetchTarefas()">Fetch Tarefas</button>
+  <script>
+
+    function fetchTarefas() {
+      fetch('http://localhost:3000/tarefas', {
+        headers: {
+          authorization: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJsb2dpbiI6InVzdWFyaW8iLCJleHAiOjE2OTM3OTI2NzgsImlhdCI6MTY5MjkyODY3OH0.qQCU3Ff4Mk-_VFIefDNa74sCPBBomNySibDNKFrJz-k'
+        }
+      })
+        .then(resp => resp.json())
+        .then(console.log);
+    }
+
+  </script>
+</body>
+</html>
