@@ -1,12 +1,14 @@
 # Resumo teórico
 
-Use este material como um complemento de estudos focado na teoria do conteúdo apresentado em aula. Este resumo está dividido em 5 seções:
+Use este material como um complemento de estudos focado na teoria do conteúdo apresentado em aula. Este resumo está dividido em 7 seções:
 
 1. JavaScript
-2. Protocolo HTTP
-3. Node.js
-4. Express
-5. Knex
+2. TypeScript
+3. Protocolo HTTP
+4. Node.js
+5. Fastify
+6. Knex
+7. Testes automatizados
 
 ## JavaScript
 
@@ -16,11 +18,11 @@ A linguagem JavaScript surgiu para atender um fim específico: servir de ferrame
 
 Um dos principais diferenciais da linguagem JavaScript está no seu modelo de execução. Ao invés de entregar um modelo baseado em threads como praticamente todas as outras linguagens, existe um componente chamado *Event Loop* responsável por orquestrar a execução de *tarefas*. Essas tarefas executam em uma única thread (ou seja, não há paralelismo), facilitando a gestão de concorrência. Além disso essas tarefas podem chamar *Web APIs* como o método *fetch* ou o *setTimeout*, estes sim potencialmente executando paralelamente.
 
-Executar uma tarefa longa no Event Loop tem o potencial de travar todo o seu processo Node.js, pois outras tarefas não conseguem ser executadas enquanto esta não finalizar. Esta característica é ao mesmo tempo a principal vantagem e armadilha de APIs Node.js.
+Executar uma tarefa longa no Event Loop tem o potencial de travar todo o seu processo Node.js, pois outras tarefas não conseguem ser executadas enquanto esta não finalizar. Esta característica é ao mesmo tempo a principal vantagem e armadilha de APIs escritas em Node.js.
 
 ### Contexto de execução (*runtime binding*, *this*)
 
-O contexto de execução (*this*) de um bloco de código JavaScript não é exatamente igual o que normalmente se encontra em outras linguagens. Ao invés de ser obrigatoriamente a instância dona da função chamada (conceito de orientação a objetos), é um objeto que definido com base na forma como a função foi chamada:
+O contexto de execução (*this*) de um bloco de código JavaScript não é exatamente igual o que normalmente se encontra em outras linguagens. Ao invés de ser obrigatoriamente a instância dona da função chamada (conceito de orientação a objetos), é um objeto definido com base na forma como a função foi chamada:
 
 ```js
 // aqui o contexto é simplesmente o mesmo do contexto atual
@@ -33,7 +35,7 @@ pessoa.cadastrar(arg1, arg2);
 cadastrarPessoa.call(ctx, arg1, arg2);
 
 // neste caso o contexto atual será propagado
-// a não ser que cadastrar tenha sido definida como uma "arrow function"
+// a não ser que "cadastrar" tenha sido definida como uma "arrow function"
 // ou que seu contexto tenha sido forçado com uma chamada "fn.bind(ctx)"
 const ref = pessoa.cadastrar;
 ref(arg1, arg2);
@@ -149,6 +151,30 @@ Já a resposta é composta por:
 
 * *Corpo*: conteúdo principal da resposta, quando aplicável.
 
+## TypeScript
+
+JavaScript é uma linguagem dinâmica. Com a popularidade do JavaScript no desenvolvimento de APIs Node.js, uma tensão surgiu para o aparecimento de uma versão da linguagem com funcionalidades de tipagem estática. A linguagem que melhor preencheu essa lacuna foi o TypeScript.
+
+Seu sucesso se deve ao fato de ser um super-conjunto do JavaScript, ou seja, todo código JavaScript é TypeScript válido, e ao fato de seu compilador transpilar para JavaScript ao invés de ser totalmente diferente. Isso significa que, no final, tudo ainda é JavaScript rodando em uma engine como a V8, simplificando muito sua adoção em projetos reais.
+
+### Controle de fluxo
+
+Uma das funcionalidades mais interessantes do TypeScript é sua inferência de tipos no controle de fluxo. Veja o código abaixo:
+
+```ts
+function imprimir(obj: string[] | string): void {
+  if (typeof obj === 'string') {
+    console.log(obj);
+  } else {
+    for (const x of obj) {
+      console.log(x);
+    }
+  }
+}
+```
+
+O compilador do TypeScript sabe que, no bloco `else` do código acima, `obj` só pode ser um vetor de strings, evitando expressões de "type cast" ou similares como teríamos em outras linguagens.
+
 ## Node.js
 
 Com o avanço do JavaScript no desenvolvimento front-end surgiu um grande incentivo no desenvolvimento de uma plataforma para uso do JavaScript no back-end. O resultado desse incentivo é a plataforma Node.js. Ela empacota o motor de JavaScript V8 (o mesmo motor responsável pela execução de JavaScript no navegador Google Chrome) complementando-o com módulos nativos para os mais diversos fins, tornando-o viável para o desenvolvimento de ferramentas de linha de comando e APIs HTTP.
@@ -175,57 +201,90 @@ Independente do que o mantenedor disse na publicação da versão, nenhuma atual
 
 Com esse tipo de padronização é possível expressar na definição de dependências os intervalos de versões aceitas, ex: `^14.5.0` (a versão mais recente da MAJOR 14).
 
-## Express
+## Fastify
 
-Uma das primeiras necessidades ao se desenvolver uma API back-end usando Node.js é o recebimento da requisição HTTP e envio da resposta. A plataforma oferece módulos nativos para isso (como o `http`) mas esses módulos não oferecem boas abstrações para o desenvolvimento de APIs acarretando em código complexo, verboso e repetitivo. Nesse contexto surge o *Express* como uma abstração sobre os módulos nativos facilitando o desenvolvimento de APIs.
+Uma das primeiras necessidades ao se desenvolver uma API back-end usando Node.js é o recebimento da requisição HTTP e envio da resposta. A plataforma oferece módulos nativos para isso (como o `http`) mas esses módulos não oferecem boas abstrações para o desenvolvimento de APIs acarretando em código complexo, verboso e repetitivo. Nesse contexto surgem frameworks como o *Fastify*, uma abstração sobre os módulos nativos facilitando o desenvolvimento de APIs.
 
 ### Endpoints
 
-A principal abstração do Express é a definição dos endpoints, como no exemplo abaixo (`app` é uma instância configurada de Express):
+A principal abstração do Fastify é a definição dos endpoints, como no exemplo abaixo (`app` é uma instância configurada):
 
-```js
-app.get('/pessoas/:id', (req, res, next) => {
-  const id = req.params.id;
-  buscarPessoa(id)
-    .then(pessoa => res.send(pessoa))
-    .catch(next);
-  ;
+```ts
+app.get('/:id', async (req, resp) => {
+  const { id } = req.params as { id: string };
+  const idTarefa = Number(id);
+  const tarefa = await consultarTarefaPeloId(req.usuario, idTarefa, req.uow);
+  return {
+    descricao: tarefa.descricao,
+    data_conclusao: tarefa.data_conclusao,
+    id_categoria: tarefa.id_categoria,
+    etiquetas: tarefa.etiquetas,
+  };
 });
 ```
 
-Note que a abstração permite definir o método (GET), o caminho incluindo parâmetros (`/pessoas/:id`), a execução assíncrona e envio da resposta.
+Note que a abstração permite definir o método (GET), o caminho incluindo parâmetros (`/:id`), a execução assíncrona e retorno da resposta.
 
-### Middlewares
+### Hooks
 
-Essa abstração permite adicionar comportamentos globais da sua API. É muito usado para processar corpos de requisição (JSON, uploads etc.), aplicar rotinas de autenticação, log de requisições dentre outras coisas. Exemplo de Middleware responsável por registrar as requisições:
+Essa abstração permite adicionar comportamentos globais da sua API. É muito usado para processar corpos de requisição (JSON, uploads etc.), aplicar rotinas de autenticação, log de requisições dentre outras coisas. Exemplo de hook responsável por autenticar usuários:
 
 ```js
-app.use((req, res, next) => {
-  res.on("finish", () => {
-    const date = new Date();
-    console.log(`${date.toISOString()} [${req.method}] ${req.path} ${res.statusCode}`);
-  });
-  next();
+app.addHook('preHandler', async (req, resp) => {
+  const { authorization } = req.headers as { authorization?: string };
+  if (authorization !== undefined) {
+    const token = authorization.replace('Bearer ', '');
+    const usuario = await recuperarUsuarioAutenticado(token, req.uow);
+    req.usuario = usuario;
+  }
+  // não queremos disparar um erro se o usuário não estiver autenticado neste ponto,
+  // pois algumas rotas podem ser públicas
 });
 ```
+
+### Plugins
+
+Com o crescimento de uma base de código Fastify passa a ser necessário organizar melhor o código dos endpoints, além de incorporar funcionalidades fornecidas por bibliotecas de terceiros. A abstração do Fastify que permite isso é a de plugins. Um plugin é uma subaplicação Fastify e praticamente tudo que pode ser feito na aplicação raiz (registro de endpoints, hooks, outros plugins etc.) também pode ser feito nele. Um uso muito comum de plugins é a definição de módulos roteadores, para encapsular endpoints relacionados.
 
 ### Validação dos dados de entrada
 
-É importante higienizar e validar os dados recebidos no corpo de uma requisição HTTP, para evitar brechas de segurança ou bugs difíceis de diagnosticar. O Express não fornece mecanismos nativos para isso, mas existem bibliotecas que permitem o desenvolvimento dessa validação com certa facilidade. Um exemplo é a biblioteca `ajv`, que fornece uma abstração para incorporar validação de objetos JavaScript usando a notação JSON Schema.
+É importante higienizar e validar os dados recebidos no corpo de uma requisição HTTP, para evitar brechas de segurança ou bugs difíceis de diagnosticar. O Fastify oferece suporte nativo para isso, através da definição de um `schema` para partes específicas da requisição utilizando `jsonschema`. Veja um exemplo:
 
-### Routers
+```ts
+const postSchema: FastifySchema = {
+  body: {
+    type: 'object',
+    properties: {
+      descricao: { type: 'string' },
+      id_categoria: { type: 'number' },
+    },
+    required: ['descricao', 'id_categoria'],
+    additionalProperties: false,
+  },
+  response: {
+    201: {
+      type: 'object',
+      properties: {
+        id: { type: 'number' },
+      },
+      required: ['id'],
+    },
+  },
+};
 
-Com o crescimento de uma base de código Express passa a ser necessário organizar melhor o código dos endpoints. Uma abstração que ajuda consideravelmente nessa organização é a de roteadores (routers). Um router é uma subaplicação Express e praticamente tudo que pode ser feito na aplicação raiz (registro de endpoints, Middleware etc.) também pode ser feito nele. Um router é um Middleware e portanto pode ser registrado na aplicação raiz (ou em outro router) com um prefixo opcional.
-
-### Tratamento de erros
-
-Quando seu cliente envia uma requisição com dados inválidos, ou parte da sua infraestrutura está fora do ar, ou a credencial anexada na requisição expirou, como você lida com a situação? Além de ser um tratamento que agrega pouco na razão de existir do endpoint, ele é um exemplo de tratamento que deve ser aplicado a toda a API de forma consistente. Por essas razões é normal que frameworks de APIs forneçam abstrações para tratamento de erros, e no Express não é diferente. Ao definir um Middleware com 4 parâmetros, esse Middleware vai atuar como um *error handler*, permitindo assim encapsular de forma global o tratamento de erros desejado.
+app.post('/', { schema: postSchema }, async (req, resp) => {
+  const dados = req.body as DadosTarefa;
+  const id = await cadastrarTarefa(req.usuario, dados, req.uow);
+  resp.status(201);
+  return { id };
+});
+```
 
 ### Autenticação stateful e JWT
 
 Existem duas abordagens mais comuns para tratamento de autenticação em APIs Web: cookies e o cabeçalho Authorization. As duas possuem prós e contras que giram em torno de segurança e praticidade de uso. Independente da solução escolhida para o transporte da credencial, é possível trabalhar com autenticação stateful (ou seja, a credencial não carrega informações suficientes para identificar o usuário e a sua validade, sendo necessário manter uma base de informações de tokens no back-end e consultá-la sempre que uma requisição for feita) ou stateless (gerando uma credencial que carrega a identificação do usuário e metadados sobre sua validade sem risco de ser forjada, sendo o JSON Web Token a principal solução desse tipo atualmente).
 
-JSON Web Tokens possuem uma *assinatura* que impede que este seja forjado ou manipulado sem o conhecimento da chave que o gerou. O conteúdo de um JWT não é *criptografado*, no entanto, logo não é recomendado adicionar informações sensíveis nele. Além da assinatura a estrutura do JWT se divide em cabeçalho e payload/corpo.
+JSON Web Tokens possuem uma *assinatura* que impede que este seja forjado ou manipulado sem o conhecimento da chave que o gerou. O conteúdo de um JWT não é *criptografado*, logo não é recomendado adicionar informações sensíveis nele. Além da assinatura a estrutura do JWT se divide em cabeçalho e payload/corpo.
 
 ### Documentação utilizando OpenAPI
 
@@ -276,3 +335,19 @@ Da mesma forma que usamos um sistema de versionamento de código-fonte (ex: Git)
 A atomicidade nos bancos relacionais é oferecida por padrão para comandos únicos, mas para estender este corportamento para qualquer conjunto de comandos é necessária a demarcação de uma transação. Esse comportamento é especialmente importante em APIs HTTP pois o erro em uma operação que manipula o banco de dados normalmente exige o cancelamento/desfazimento de tudo que já foi feito naquela mesma requisição.
 
 O padrão Unidade de Trabalho é uma ferramenta útil e eficaz em projetos Node.js para propagar uma mesma transação em todas as chamadas de uma requisição HTTP.
+
+## Testes automatizados
+
+É difícil de se manter uma base de código de tamanho médio ou grande, sem uma boa cobertura de testes automatizados. Isso ocorre pois refatorações maiores sempre serão evitadas, visto que a equipe não tem confiança de que pode fazê-las sem causar estragos demais no funcionamento do sistema. Sem refatoração, o design do projeto tende a ruir com o tempo, levando a uma inevitável necessidade de reescrita completa.
+
+Existem diversos tipos de teste automatizado, dentre deles os testes unitários e testes de integração. Testes unitários validam o funcionamento de *unidades* em isolamento, normalmente uma função, *mocando* (substituindo) todas as suas dependências. Por outro lado, testes de integração possuem um escopo maior, pois não substituem as dependências do bloco de código que está sendo testado.
+
+### Test-Driven Development
+
+Uma forma interessante de garantir uma boa cobertura de testes automatizados no seu projeto é o uso da técnica TDD (Test-Driven Development). Ela consiste em seguir as 3 regras abaixo durante o dia a dia do desenvolvimento:
+
+1. Se os testes estão passando, escreva um único novo caso de teste que falha
+2. Se tem testes falhando, escreva a versão mais simples do código que os faz passar
+3. Se os testes estão passando, você pode refatorar o código existente, *sem que isso mude seu comportamento adicionando funcionalidades*
+
+Esse ciclo permite que código seja desenvolvido com boa cobertura de testes logo do início.
