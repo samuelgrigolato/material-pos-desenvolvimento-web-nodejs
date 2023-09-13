@@ -29,8 +29,17 @@ values ('Usuário', 'usuario', '$2a$12$.2xyMG/zt6kgICCnzlwDq.39rN.smOKhTRpI.pFW0
 
 Existe uma exportação de Insomnia nesta pasta, que permite visualizar a suíte de requisições disponível no projeto.
 
-## Comando docker para subir um container PostgreSQL
+## Usando o docker para instalar o ambiente
+
+Crie um arquivo .env na raiz do projeto conforme o modelo abaixo
 
 ```
-$ docker run -d --name ufscar-desenvweb-2023 -p 5432:5432 -e POSTGRES_PASSWORD=postgres postgres
+export OPENAI_API_KEY="novo var"
+export JWT_SECRET="1234567"
+```
+
+Rode os seguintes comandos do docker compose
+```SH
+docker-compose build
+docker-compose up
 ```

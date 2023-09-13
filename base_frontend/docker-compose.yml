@@ -1,0 +1,42 @@
+version: '3.2'
+
+services:
+  api:
+    build: .
+    network_mode: "host"
+    command: sh -c "npm run build && npm start"
+    volumes:
+      - .:/usr/app/
+      - /usr/app/node_modules
+    depends_on:
+      - db
+    env_file:
+    - .env
+  db:
+    container_name: postgres
+    image: postgres:15.4-alpine
+    ports:
+      - 5432:5432
+    environment:
+      POSTGRES_HOST_AUTH_METHOD: trust
+      POSTGRES_DB: postgres
+      POSTGRES_PASSWORD: postgres
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - dbdata:/var/lib/postgresql/data/pgdata
+  adminer:
+    image: adminer
+    restart: always
+    ports:
+      - 8083:8080
+    depends_on:
+      - db
+    environment:
+      ADMINER_DEFAULT_SERVER: db
+      ADMINER_DEFAULT_DB_DRIVER: pgsql
+      ADMINER_DEFAULT_DB_NAME: postgres
+      ADMINER_DESIGN: pepa-linha
+
+
+volumes:
+  dbdata:
