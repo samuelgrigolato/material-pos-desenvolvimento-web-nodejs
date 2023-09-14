@@ -4,7 +4,7 @@ services:
   api:
     build: .
     network_mode: "host"
-    command: sh -c "npm run build && npm start"
+    command: sh -c "npx knex migrate:latest && npm run build && npm start"
     volumes:
       - .:/usr/app/
       - /usr/app/node_modules
