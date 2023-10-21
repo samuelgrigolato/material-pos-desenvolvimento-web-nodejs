@@ -43,7 +43,7 @@ async function perguntar(modeladorDeResposta: string, opcoesDePergunta: OpcoesDe
 const chatbot: Chatbot = {
 
   async perguntarListaDeFrases(opcoesDePergunta) {
-    return JSON.parse(await perguntar('A saída deve obrigatoriamente ser um vetor de strings formatado em JSON.', opcoesDePergunta));
+    return JSON.parse(await perguntar('A saída deve obrigatoriamente ser um vetor de strings formatado em JSON. Exemplo da saída: ["1. tarefa 1", "2. tarefa 2", "3. tarefa 3"]', opcoesDePergunta));
   },
 
   async perguntarFraseUnica(opcoesDePergunta) {
