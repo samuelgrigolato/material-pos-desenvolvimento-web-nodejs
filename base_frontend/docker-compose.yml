@@ -11,6 +11,8 @@ services:
       - /usr/app/node_modules
     depends_on:
       - db
+    environment:
+      - API_RUN_MODE=dockerized
     env_file:
     - .env
   db:
