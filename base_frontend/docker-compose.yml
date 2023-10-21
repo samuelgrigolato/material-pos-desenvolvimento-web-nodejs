@@ -3,13 +3,16 @@ version: '3.2'
 services:
   api:
     build: .
-    network_mode: "host"
+    ports:
+      - 3000:3000
     command: sh -c "npx knex migrate:latest && npm run build && npm start"
     volumes:
       - .:/usr/app/
       - /usr/app/node_modules
     depends_on:
       - db
+    environment:
+      - API_RUN_MODE=dockerized
     env_file:
     - .env
   db:
